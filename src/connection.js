@@ -21,31 +21,10 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     version,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: !state.creds.registered, // Only print QR if pairing code fails or as fallback
+    printQRInTerminal: true,
     auth: state,
     browser: ['Munandy Weight Bot', 'Chrome', '1.0.0'],
   });
-
-  // Request pairing code if not registered
-  if (!sock.authState.creds.registered) {
-    const phoneNumber = '263786283617';
-    console.log(`\nRequesting pairing code for bot number: ${phoneNumber}...`);
-    setTimeout(async () => {
-      try {
-        const code = await sock.requestPairingCode(phoneNumber);
-        console.log(`\n=========================================`);
-        console.log(`🔑 PAIRING CODE: ${code}`);
-        console.log(`=========================================\n`);
-        console.log(`1. Open WhatsApp on your phone`);
-        console.log(`2. Tap Menu (⋮) or Settings > Linked Devices`);
-        console.log(`3. Tap "Link a device"`);
-        console.log(`4. Tap "Link with phone number instead" (at bottom)`);
-        console.log(`5. Enter the pairing code above`);
-      } catch (err) {
-        console.error('Failed to request pairing code:', err.message);
-      }
-    }, 3000);
-  }
 
   // Share the live socket reference
   setSocket(sock);
