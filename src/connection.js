@@ -1,10 +1,10 @@
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-  makeInMemoryStore,
-} = require('@whiskeysockets/baileys');
+const baileys = require('@whiskeysockets/baileys');
+const makeWASocket = baileys.default;
+const useMultiFileAuthState = baileys.useMultiFileAuthState;
+const DisconnectReason = baileys.DisconnectReason;
+const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
+const makeInMemoryStore = baileys.makeInMemoryStore;
+
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
 const path = require('path');
