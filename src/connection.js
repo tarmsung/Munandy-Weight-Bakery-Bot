@@ -9,6 +9,7 @@ const pino = require('pino');
 const path = require('path');
 const { handleMessage } = require('./handlers/messageHandler');
 const { setSocket } = require('./state');
+const qrcode = require('qrcode-terminal');
 
 const AUTH_FOLDER = path.join(__dirname, '..', 'auth_info_baileys');
 
@@ -21,7 +22,7 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     version,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal: true,
+    printQRInTerminal: false, // Set to false since we handle it manually now
     auth: state,
     browser: ['Munandy Weight Bot', 'Chrome', '1.0.0'],
   });
@@ -32,7 +33,12 @@ async function connectToWhatsApp() {
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log('📱 Scan the QR code below to link your WhatsApp:');
+      qrcode.generate(qr, { small: true });
+    }
 
     if (connection === 'close') {
       const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
