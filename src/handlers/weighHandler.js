@@ -87,8 +87,12 @@ async function handleWeighStep(sock, msg, text, jid) {
             const avgRounded = Math.round(avg);
             const { product } = session;
             const status = calcStatus(avg, product.min_weight, product.max_weight);
-            const variance = parseFloat((avg - product.target_weight).toFixed(1));
-            const varianceStr = variance >= 0 ? `+${variance}g` : `${variance}g`;
+
+            // Variance = how far outside the range (0 if optimal)
+            let variance = 0;
+            if (status === 'Overweight') variance = parseFloat((avg - product.max_weight).toFixed(1));
+            if (status === 'Underweight') variance = parseFloat((avg - product.min_weight).toFixed(1));
+            const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
 
             setSession(jid, { ...session, step: 'QUANTITY', samples: allSamples, average: avg, avgRounded, status, variance });
 
@@ -97,8 +101,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 `Product: *${product.product_name}*\n` +
                 `Samples: ${allSamples.join(', ')}\n` +
                 `Average: *${avgRounded}g*\n` +
-                `Target:  ${product.target_weight}g\n` +
-                `Min/Max: ${product.min_weight}g / ${product.max_weight}g\n` +
+                `Target:  ${product.min_weight}g – ${product.max_weight}g\n` +
                 `Variance: *${varianceStr}*\n\n` +
                 `Status: ${statusEmoji(status)} *${status}*\n\n` +
                 `━━━━━━━━━━━━━━━━━━\n` +
@@ -120,7 +123,7 @@ async function handleWeighStep(sock, msg, text, jid) {
             }
 
             const { product, samples, average, avgRounded, status, variance, senderNumber } = session;
-            const varianceStr = variance >= 0 ? `+${variance}g` : `${variance}g`;
+            const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
 
             // Save to Supabase
             await saveRecord({
@@ -138,7 +141,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 `Product:  *${product.product_name}*\n` +
                 `Samples:  ${samples.join(', ')}\n` +
                 `Average:  *${avgRounded}g*\n` +
-                `Target:   ${product.target_weight}g\n` +
+                `Target:   ${product.min_weight}g – ${product.max_weight}g\n` +
                 `Variance: *${varianceStr}*\n` +
                 `Status:   ${statusEmoji(status)} *${status}*`;
 

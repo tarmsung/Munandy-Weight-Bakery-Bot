@@ -4,33 +4,37 @@
 -- ============================================================
 
 -- 1. Products table
+--    The acceptable range (min_weight to max_weight) IS the target.
+--    Average below min = Underweight | above max = Overweight | within range = Optimal
 CREATE TABLE IF NOT EXISTS products (
   id            SERIAL PRIMARY KEY,
   product_name  TEXT    NOT NULL,
-  target_weight NUMERIC NOT NULL,   -- midpoint of the acceptable range
   min_weight    NUMERIC NOT NULL,
   max_weight    NUMERIC NOT NULL
 );
 
 -- 2. Seed products (Standard Finished Product chart)
---    target_weight = midpoint of min–max range
-INSERT INTO products (product_name, target_weight, min_weight, max_weight) VALUES
-  ('Rolls (4)',         338, 330, 345),
-  ('Hot Dogs (4)',      338, 330, 345),
-  ('Plain Buns (4)',    183, 175, 190),
-  ('Fatfree',           160, 155, 165),
-  ('Danish',            160, 155, 165),
-  ('Cream Doughnut',    170, 165, 175),
-  ('Ring Doughnut',     170, 165, 175),
-  ('Twist Doughnut',    170, 165, 175),
-  ('Mighty Glaze',      130, 125, 135),
-  ('Lemon Scandal',     185, 180, 190),
-  ('Scone',             105, 100, 110),
-  ('Rock Bun',          200, 195, 205),
-  ('Joy Crunch',        105, 100, 110)
+INSERT INTO products (product_name, min_weight, max_weight) VALUES
+  ('Rolls (4)',         330, 345),
+  ('Hot Dogs (4)',      330, 345),
+  ('Plain Buns (4)',    175, 190),
+  ('Fatfree',           155, 165),
+  ('Danish',            155, 165),
+  ('Cream Doughnut',    165, 175),
+  ('Ring Doughnut',     165, 175),
+  ('Twist Doughnut',    165, 175),
+  ('Mighty Glaze',      125, 135),
+  ('Lemon Scandal',     180, 190),
+  ('Scone',             100, 110),
+  ('Rock Bun',          195, 205),
+  ('Joy Crunch',        100, 110)
 ON CONFLICT DO NOTHING;
 
 -- 3. Weight records table
+--    variance: distance outside the range
+--              positive (+) = how far above max_weight
+--              negative (-) = how far below min_weight
+--              zero    (0)  = within range (Optimal)
 CREATE TABLE IF NOT EXISTS weight_records (
   id          BIGSERIAL PRIMARY KEY,
   product_id  INT       NOT NULL REFERENCES products(id),
