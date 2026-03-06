@@ -22,8 +22,8 @@ async function handleMessage(sock, msg) {
 
     if (isFromMe || !text) return;
 
-    const senderNumber = sender.replace(/@s\.whatsapp\.net|@g\.us/, '');
-    console.log(`[MSG] ${senderNumber}: ${text}`);
+    const senderNumber = sender.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
+    console.log(`[MSG] Raw Sender: ${sender} | Processed: ${senderNumber} | Text: ${text}`);
 
     // ── Authorization Check ────────────────────────────────────────────────────
     // Only allow ADMIN NUMBERS or registered SUPERVISORS to talk to the bot
