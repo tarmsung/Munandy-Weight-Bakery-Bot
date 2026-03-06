@@ -2,7 +2,9 @@ const cron = require('node-cron');
 const path = require('path');
 const fs = require('fs');
 const { getTodayRecords } = require('./db/records');
+const { getAllSupervisors } = require('./db/supervisors');
 const { generatePDFReport } = require('./reports/reportGenerator');
+const { generateAIAnalysis } = require('./reports/aiAnalyzer');
 const { getSocket } = require('./state');
 
 // Folder to archive generated PDFs locally
@@ -13,7 +15,7 @@ function statusEmoji(status) {
     return status === 'Optimal' ? '✅' : status === 'Overweight' ? '🔴' : '🔵';
 }
 
-function buildSummaryText(records, dateLabel) {
+function buildSummaryText(records, dateLabel, aiAnalysis) {
     const optimal = records.filter((r) => r.status === 'Optimal').length;
     const over = records.filter((r) => r.status === 'Overweight').length;
     const under = records.filter((r) => r.status === 'Underweight').length;
@@ -31,6 +33,10 @@ function buildSummaryText(records, dateLabel) {
         text += '\n';
     }
 
+    if (aiAnalysis) {
+        text += `\n🤖 *AI Analysis:*\n_${aiAnalysis}_\n`;
+    }
+
     text += `\n_Full details in the attached PDF._`;
     return text;
 }
@@ -42,11 +48,11 @@ async function sendEndOfDayReport() {
         return;
     }
 
-    const ownerNumber = process.env.OWNER_NUMBER;
-    const supervisorNumber = process.env.SUPERVISOR_NUMBER;
+    const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+    const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
 
-    if (!ownerNumber) {
-        console.warn('⚠️  OWNER_NUMBER not set in .env — skipping EOD report.');
+    if (adminNums.length === 0) {
+        console.warn('⚠️  ADMIN_NUMBERS not set in .env — skipping EOD report.');
         return;
     }
 
@@ -56,9 +62,14 @@ async function sendEndOfDayReport() {
     });
     const dateStr = new Date().toISOString().split('T')[0];
 
-    // Recipients: always owner, supervisor optional
-    const recipients = [ownerNumber];
-    if (supervisorNumber) recipients.push(supervisorNumber);
+    // Recipients: always admins, plus any dynamic supervisors
+    const recipients = [...adminNums];
+    try {
+        const dbSupervisors = await getAllSupervisors();
+        dbSupervisors.forEach(s => recipients.push(s.phone_number));
+    } catch (err) {
+        console.error('Failed to fetch supervisors from DB:', err.message);
+    }
 
     if (records.length === 0) {
         for (const num of recipients) {
@@ -70,8 +81,9 @@ async function sendEndOfDayReport() {
         return;
     }
 
-    const summaryText = buildSummaryText(records, dateLabel);
-    const pdfBuffer = await generatePDFReport(records, dateLabel);
+    const aiAnalysis = await generateAIAnalysis(records);
+    const summaryText = buildSummaryText(records, dateLabel, aiAnalysis);
+    const pdfBuffer = await generatePDFReport(records, dateLabel, aiAnalysis);
 
     // Archive PDF locally
     const pdfPath = path.join(REPORTS_DIR, `report_${dateStr}.pdf`);

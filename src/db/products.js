@@ -30,4 +30,46 @@ async function getProductById(id) {
     return data;
 }
 
-module.exports = { getAllProducts, getProductById };
+/**
+ * Add a new product to the database.
+ * @param {string} productName 
+ * @param {number} minWeight 
+ * @param {number} maxWeight 
+ */
+async function addProduct(productName, minWeight, maxWeight) {
+    const { data, error } = await supabase
+        .from('products')
+        .insert([{
+            product_name: productName,
+            min_weight: minWeight,
+            max_weight: maxWeight
+        }])
+        .select()
+        .single();
+
+    if (error) throw new Error(`addProduct: ${error.message}`);
+    return data;
+}
+
+/**
+ * Update the min/max weight range of a product.
+ * @param {number} id 
+ * @param {number} minWeight 
+ * @param {number} maxWeight 
+ */
+async function updateProductRange(id, minWeight, maxWeight) {
+    const { data, error } = await supabase
+        .from('products')
+        .update({
+            min_weight: minWeight,
+            max_weight: maxWeight
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) throw new Error(`updateProductRange: ${error.message}`);
+    return data;
+}
+
+module.exports = { getAllProducts, getProductById, addProduct, updateProductRange };

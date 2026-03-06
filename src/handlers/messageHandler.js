@@ -1,6 +1,9 @@
 const { hasSession } = require('../sessions/sessionManager');
 const { startWeigh, handleWeighStep } = require('./weighHandler');
 const { handleToday } = require('./todayHandler');
+const { startAdminMenu, handleAdminStep } = require('./adminHandler');
+const { getAllSupervisors } = require('../db/supervisors');
+const { sendEndOfDayReport } = require('../scheduler');
 
 function getMessageText(msg) {
     return (
@@ -22,14 +25,53 @@ async function handleMessage(sock, msg) {
     const senderNumber = sender.replace(/@s\.whatsapp\.net|@g\.us/, '');
     console.log(`[MSG] ${senderNumber}: ${text}`);
 
+    // ── Authorization Check ────────────────────────────────────────────────────
+    // Only allow ADMIN NUMBERS or registered SUPERVISORS to talk to the bot
+    const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+    const adminNums = adminNumsStr.split(',').map(n => n.trim());
+    let isAuthorized = adminNums.includes(senderNumber);
+
+    if (!isAuthorized) {
+        try {
+            const supervisors = await getAllSupervisors();
+            isAuthorized = supervisors.some((s) => s.phone_number === senderNumber);
+        } catch (err) {
+            console.error('Failed to fetch supervisors for auth check:', err.message);
+        }
+    }
+
+    if (!isAuthorized) {
+        // Send a rejection message to strangers
+        await sock.sendMessage(jid, { text: `🚫 You are not authorised to use this ChatBot.` });
+        console.log(`[AUTH FAILED] Replied to unauthorized number: ${senderNumber}`);
+        return;
+    }
+
     // ── Active session: route all input through the weigh state machine ────────
     if (hasSession(jid)) {
-        const handled = await handleWeighStep(sock, msg, text, jid);
+        let handled = await handleWeighStep(sock, msg, text, jid);
+        if (!handled) {
+            handled = await handleAdminStep(sock, msg, text, jid);
+        }
         if (handled) return;
     }
 
     // ── Commands ───────────────────────────────────────────────────────────────
     const cmd = text.toLowerCase();
+
+    // ── Admin Command ──────────────────────────────────────────────────────────
+    if (adminNums.includes(senderNumber)) {
+        if (['hi', 'hello', 'admin', 'menu'].includes(cmd)) {
+            await startAdminMenu(sock, jid, senderNumber);
+            return;
+        }
+
+        if (cmd === '!testreport') {
+            await sock.sendMessage(jid, { text: `⏳ Generating manual report with AI analysis... Please wait a few seconds.` });
+            await sendEndOfDayReport();
+            return;
+        }
+    }
 
     if (cmd === '/weigh' || cmd === '!weigh') {
         await startWeigh(sock, jid, senderNumber);

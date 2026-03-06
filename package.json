@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop munandy-weight-bot",
+    "pm2:restart": "pm2 restart munandy-weight-bot",
+    "pm2:logs": "pm2 logs munandy-weight-bot"
   },
   "keywords": [
     "whatsapp",
@@ -21,6 +25,7 @@
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "dotenv": "^17.3.1",
     "node-cron": "^4.2.1",
+    "openai": "^6.27.0",
     "pdfkit": "^0.17.2",
     "pino": "^10.3.1",
     "qrcode-terminal": "^0.12.0"

@@ -42,7 +42,6 @@ async function getTodayRecords() {
       *,
       products (
         product_name,
-        target_weight,
         min_weight,
         max_weight
       )
@@ -57,7 +56,6 @@ async function getTodayRecords() {
     return (data || []).map((r) => ({
         ...r,
         product_name: r.products?.product_name,
-        target_weight: r.products?.target_weight,
         min_weight: r.products?.min_weight,
         max_weight: r.products?.max_weight,
     }));
@@ -76,7 +74,6 @@ async function getRecordsByDate(date) {
       *,
       products (
         product_name,
-        target_weight,
         min_weight,
         max_weight
       )
@@ -90,7 +87,6 @@ async function getRecordsByDate(date) {
     return (data || []).map((r) => ({
         ...r,
         product_name: r.products?.product_name,
-        target_weight: r.products?.target_weight,
         min_weight: r.products?.min_weight,
         max_weight: r.products?.max_weight,
     }));

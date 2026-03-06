@@ -15,10 +15,10 @@ function statusLabel(status) {
 /**
  * Generate a PDF quality-control report.
  * @param {Array}  records  - rows from weight_records joined with products
- * @param {string} [dateLabel] - human-readable date string for the header
+ * @param {string} [aiAnalysis] - Optional concise AI summary paragraph
  * @returns {Promise<Buffer>}
  */
-function generatePDFReport(records, dateLabel) {
+function generatePDFReport(records, dateLabel, aiAnalysis) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ margin: 40, size: 'A4' });
         const chunks = [];
@@ -51,7 +51,18 @@ function generatePDFReport(records, dateLabel) {
         doc.fontSize(10).font('Helvetica')
             .text(`Batches recorded: ${records.length}   |   ✓ Optimal: ${optimal}   |   ▲ Overweight: ${overweight}   |   ▼ Underweight: ${underweight}`,
                 { align: 'center' });
-        doc.moveDown(1.2);
+
+        if (aiAnalysis) {
+            doc.moveDown(1);
+            doc.fillColor('#2980b9').fontSize(10).font('Helvetica-Bold')
+                .text('🤖 AI Quality Insight:', { align: 'center' });
+            doc.moveDown(0.2);
+            doc.fillColor('#555555').fontSize(9).font('Helvetica-Oblique')
+                .text(aiAnalysis, { align: 'center' });
+            doc.moveDown(1.5);
+        } else {
+            doc.moveDown(1.2);
+        }
 
         // ── Table ─────────────────────────────────────────────────────────────────
         const PAGE_LEFT = 40;
