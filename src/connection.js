@@ -3,7 +3,6 @@ const makeWASocket = baileys.default;
 const useMultiFileAuthState = baileys.useMultiFileAuthState;
 const DisconnectReason = baileys.DisconnectReason;
 const fetchLatestBaileysVersion = baileys.fetchLatestBaileysVersion;
-const makeInMemoryStore = baileys.makeInMemoryStore;
 
 const { Boom } = require('@hapi/boom');
 const pino = require('pino');
@@ -12,8 +11,6 @@ const { handleMessage } = require('./handlers/messageHandler');
 const { setSocket } = require('./state');
 
 const AUTH_FOLDER = path.join(__dirname, '..', 'auth_info_baileys');
-
-const store = makeInMemoryStore({ logger: pino({ level: 'silent' }) });
 
 async function connectToWhatsApp() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
@@ -53,7 +50,6 @@ async function connectToWhatsApp() {
   // Share the live socket reference
   setSocket(sock);
 
-  store.bind(sock.ev);
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (update) => {
