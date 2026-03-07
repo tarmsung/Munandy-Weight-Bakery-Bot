@@ -55,7 +55,7 @@ async function handleMessage(sock, msg) {
     const cmd = text.toLowerCase();
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
-    if (['/weigh', '!weigh', '/today', '!today', '!ping', '!help', '/help', 'hi', 'hello', 'admin', 'menu'].includes(cmd)) {
+    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'hi', 'hello', 'admin', 'menu'].includes(cmd)) {
         if (hasSession(jid)) clearSession(jid); // Force exit current session if typing a command
     } else {
         // ── Active session: route non-command input to the active state machine
@@ -83,22 +83,22 @@ async function handleMessage(sock, msg) {
         }
     }
 
-    if (cmd === '/weigh' || cmd === '!weigh') {
+    if (['weigh', '/weigh', '!weigh'].includes(cmd)) {
         await startWeigh(sock, jid, senderNumber);
         return;
     }
 
-    if (cmd === '/today' || cmd === '!today') {
+    if (['today', '/today', '!today'].includes(cmd)) {
         await handleToday(sock, jid, msg);
         return;
     }
 
-    if (cmd === '!ping') {
+    if (['ping', '!ping'].includes(cmd)) {
         await sock.sendMessage(jid, { text: '🏓 Pong!' }, { quoted: msg });
         return;
     }
 
-    if (cmd === '!help' || cmd === '/help') {
+    if (['help', '!help', '/help'].includes(cmd)) {
         await sock.sendMessage(
             jid,
             {
