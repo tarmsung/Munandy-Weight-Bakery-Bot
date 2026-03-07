@@ -1,4 +1,4 @@
-const { getAllProducts, addProduct, updateProductRange } = require('../db/products');
+const { getAllProducts, addProduct, updateProductRange, deleteProduct } = require('../db/products');
 const { getAllSupervisors, addSupervisor, removeSupervisor } = require('../db/supervisors');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
@@ -10,7 +10,8 @@ const ADMIN_MENU_TEXT =
     `2️⃣ Remove a Supervisor\n` +
     `3️⃣ Add a new Product\n` +
     `4️⃣ Change accepted weights for a Product\n` +
-    `5️⃣ Exit Admin Mode\n\n` +
+    `5️⃣ Delete a Product\n` +
+    `6️⃣ Exit Admin Mode\n\n` +
     `_Reply with a number. Type *back* at any step to return here._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
@@ -81,10 +82,23 @@ async function handleAdminStep(sock, msg, text, jid) {
                     msg += `\n_Reply with the number of the product to update, or type *back*._`;
                     await reply(msg);
                 } else if (choice === 5) {
+                    const products = await getAllProducts();
+                    if (products.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `❌ No products in the system.\n\n`);
+                        return true;
+                    }
+                    setSession(jid, { ...session, step: 'ADMIN_DELETE_PRODUCT', list: products });
+                    let msg = `🗑️ *Delete Product*\n\n`;
+                    products.forEach((p, idx) => {
+                        msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} ${p.product_name}\n`;
+                    });
+                    msg += `\n_Reply with the number of the product to completely delete, or type *back*._\n\n⚠️ *Warning:* This cannot be undone!`;
+                    await reply(msg);
+                } else if (choice === 6) {
                     clearSession(jid);
                     await reply(`👋 Exited Admin Mode.`);
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1, 2, 3, 4, or 5.`);
+                    await reply(`❌ Invalid choice. Please reply with 1, 2, 3, 4, 5, or 6.`);
                 }
                 return true;
             }
@@ -189,6 +203,23 @@ async function handleAdminStep(sock, msg, text, jid) {
                 await backToMenu(sock, jid, session, reply,
                     `✅ *Product Updated!*\n${selected.product_name}: ${session.tempMin}g – ${max}g\n\n`
                 );
+                return true;
+            }
+
+            case 'ADMIN_DELETE_PRODUCT': {
+                const idx = parseInt(input, 10) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= session.list.length) {
+                    await reply(`❌ Invalid choice. Enter a number from the list, or type *back*._`);
+                    return true;
+                }
+                const selected = session.list[idx];
+                try {
+                    await deleteProduct(selected.id);
+                    await backToMenu(sock, jid, session, reply, `✅ *Product Deleted!*\n${selected.product_name} was removed successfully.\n\n`);
+                } catch (err) {
+                    // This can happen if foreign key constraints fail on weight_records
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to delete!*\nThe product cannot be deleted because it already has weight records linked to it.\n\n`);
+                }
                 return true;
             }
 

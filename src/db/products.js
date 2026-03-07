@@ -72,4 +72,18 @@ async function updateProductRange(id, minWeight, maxWeight) {
     return data;
 }
 
-module.exports = { getAllProducts, getProductById, addProduct, updateProductRange };
+/**
+ * Delete a product from the database.
+ * @param {number} id 
+ */
+async function deleteProduct(id) {
+    const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', id);
+
+    if (error) throw new Error(`deleteProduct: ${error.message}`);
+    return true;
+}
+
+module.exports = { getAllProducts, getProductById, addProduct, updateProductRange, deleteProduct };
