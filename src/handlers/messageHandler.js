@@ -52,18 +52,23 @@ async function handleMessage(sock, msg) {
         return;
     }
 
-    // ── Active session: route all input through the weigh state machine ────────
-    if (hasSession(jid)) {
-        let handled = await handleWeighStep(sock, msg, text, jid);
-        if (!handled) {
-            handled = await handleAdminStep(sock, msg, text, jid);
+    const cmd = text.toLowerCase();
+
+    // ── Global Command Override (Break out of sessions) ────────────────────────
+    if (['/weigh', '!weigh', '/today', '!today', '!ping', '!help', '/help', 'hi', 'hello', 'admin', 'menu'].includes(cmd)) {
+        if (hasSession(jid)) clearSession(jid); // Force exit current session if typing a command
+    } else {
+        // ── Active session: route non-command input to the active state machine
+        if (hasSession(jid)) {
+            let handled = await handleWeighStep(sock, msg, text, jid);
+            if (!handled) {
+                handled = await handleAdminStep(sock, msg, text, jid);
+            }
+            if (handled) return;
         }
-        if (handled) return;
     }
 
     // ── Commands ───────────────────────────────────────────────────────────────
-    const cmd = text.toLowerCase();
-
     // ── Admin Command ──────────────────────────────────────────────────────────
     if (adminNums.includes(senderNumber)) {
         if (['hi', 'hello', 'admin', 'menu'].includes(cmd)) {
