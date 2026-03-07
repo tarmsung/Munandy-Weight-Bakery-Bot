@@ -22,7 +22,11 @@ async function handleMessage(sock, msg) {
 
     if (isFromMe || !text) return;
 
-    const senderNumber = sender.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
+    // When WhatsApp uses LID addressing, remoteJidAlt holds the real phone number
+    const altJid = msg.key.remoteJidAlt;
+    const senderNumber = altJid
+        ? altJid.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '')
+        : sender.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
     console.log(`[MSG] Raw Sender: ${sender} | Processed: ${senderNumber} | Text: ${text}`);
 
     // ── Authorization Check ────────────────────────────────────────────────────
