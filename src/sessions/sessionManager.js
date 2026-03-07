@@ -4,7 +4,7 @@
  * Session shape:
  * {
  *   step:         'SELECT_PRODUCT' | 'SAMPLE_1' | 'SAMPLE_2' | 'SAMPLE_3' | 'SAMPLE_4' | 'QUANTITY',
- *   product:      { id, product_name, target_weight, min_weight, max_weight },
+ *   product:      { id, product_name, min_weight, max_weight },
  *   samples:      number[],
  *   average:      number,
  *   avgRounded:   number,

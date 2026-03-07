@@ -30,10 +30,10 @@ async function handleToday(sock, jid, msg) {
 
     for (const r of records) {
         const avg = Math.round(r.average);
-        const variance = r.variance >= 0 ? `+${r.variance}g` : `${r.variance}g`;
+        const variance = r.variance > 0 ? `+${r.variance}g` : r.variance < 0 ? `${r.variance}g` : `0g (within range)`;
         msg_text +=
             `${statusEmoji(r.status)} *${r.product_name}*\n` +
-            `   Avg: ${avg}g  |  Target: ${r.target_weight}g  |  Variance: ${variance}\n`;
+            `   Avg: ${avg}g  |  Target: ${r.min_weight}g–${r.max_weight}g  |  Variance: ${variance}\n`;
     }
 
     msg_text += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;

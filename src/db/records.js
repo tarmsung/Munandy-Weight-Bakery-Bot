@@ -30,11 +30,10 @@ async function saveRecord({ productId, samples, average, quantity, status, varia
  * Joins with the products table to include product details.
  */
 async function getTodayRecords() {
-    // Supabase stores timestamptz in UTC; filter by UTC date
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    // Supabase stores timestamptz in UTC; build the range using the UTC date
+    const todayUTC = new Date().toISOString().split('T')[0]; // e.g. "2026-03-07"
+    const todayStart = new Date(`${todayUTC}T00:00:00.000Z`);
+    const todayEnd = new Date(`${todayUTC}T23:59:59.999Z`);
 
     const { data, error } = await supabase
         .from('weight_records')

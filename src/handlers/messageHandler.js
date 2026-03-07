@@ -44,6 +44,7 @@ async function handleMessage(sock, msg) {
         // Send a rejection message to strangers
         await sock.sendMessage(jid, { text: `🚫 You are not authorised to use this ChatBot.` });
         console.log(`[AUTH FAILED] Replied to unauthorized number: ${senderNumber}`);
+        console.log('[DEBUG RAW MSG]', JSON.stringify(msg, null, 2));
         return;
     }
 
