@@ -49,3 +49,11 @@ CREATE TABLE IF NOT EXISTS weight_records (
   recorded_by TEXT,
   recorded_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- 4. Supervisors table
+--    Authorized numbers that receive the EOD report & can use the bot
+CREATE TABLE IF NOT EXISTS supervisors (
+  id            SERIAL PRIMARY KEY,
+  phone_number  TEXT UNIQUE NOT NULL,
+  added_at      TIMESTAMPTZ DEFAULT now()
+);
