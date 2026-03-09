@@ -100,6 +100,7 @@ async function sendEndOfDayReport() {
     const pdfPath = path.join(REPORTS_DIR, `report_${dateStr}.pdf`);
     fs.writeFileSync(pdfPath, pdfBuffer);
 
+    // Send Master Report to Admins & Supervisors
     for (const num of recipients) {
         const jid = `${num}@s.whatsapp.net`;
         await sock.sendMessage(jid, { text: summaryText });
@@ -108,7 +109,40 @@ async function sendEndOfDayReport() {
             fileName: `QC_Report_${dateStr}.pdf`,
             mimetype: 'application/pdf',
         });
-        console.log(`📊 EOD report sent to ${num}`);
+        console.log(`📊 EOD master report sent to ${num}`);
+    }
+
+    // ── Send Branch-Specific Reports to Groups ────────────────────────────────
+    const branchGroups = {
+        'Harare': process.env.HARARE_GROUP_ID,
+        'Mutare': process.env.MUTARE_GROUP_ID,
+        'Bulawayo': process.env.BULAWAYO_GROUP_ID
+    };
+
+    for (const [branch, groupId] of Object.entries(branchGroups)) {
+        if (!groupId) continue;
+
+        const branchRecords = records.filter(r => (r.branch || 'Unknown').toLowerCase() === branch.toLowerCase());
+
+        if (branchRecords.length === 0) {
+            await sock.sendMessage(groupId, {
+                text: `📭 *End-of-Day Report - ${branch}*\n_${dateLabel}_\n\nNo weight records were recorded for this branch today.`,
+            });
+            console.log(`📊 EOD branch report sent to ${branch} group (no records).`);
+            continue;
+        }
+
+        const branchAiAnalysis = await generateAIAnalysis(branchRecords);
+        const branchSummaryText = buildSummaryText(branchRecords, dateLabel, branchAiAnalysis);
+        const branchPdfBuffer = await generatePDFReport(branchRecords, dateLabel, branchAiAnalysis);
+
+        await sock.sendMessage(groupId, { text: branchSummaryText });
+        await sock.sendMessage(groupId, {
+            document: branchPdfBuffer,
+            fileName: `QC_${branch}_Report_${dateStr}.pdf`,
+            mimetype: 'application/pdf',
+        });
+        console.log(`📊 EOD branch report sent to ${branch} group.`);
     }
 }
 
