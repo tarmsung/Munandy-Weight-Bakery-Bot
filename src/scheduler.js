@@ -140,6 +140,41 @@ async function sendEndOfDayReport() {
     }
 }
 
+async function checkMorningSubmissions() {
+    const sock = getSocket();
+    if (!sock) {
+        console.warn('⚠️  No active socket — skipping morning check.');
+        return;
+    }
+
+    const records = await getTodayRecords();
+
+    // Group records by branch
+    const recordedBranches = new Set();
+    for (const r of records) {
+        if (r.branch) recordedBranches.add(r.branch.toLowerCase());
+    }
+
+    // ── Check Each Branch ────────────────────────────────
+    const branchGroups = {
+        'Harare': process.env.HARARE_GROUP_ID,
+        'Mutare': process.env.MUTARE_GROUP_ID,
+        'Bulawayo': process.env.BULAWAYO_GROUP_ID
+    };
+
+    for (const [branch, groupId] of Object.entries(branchGroups)) {
+        if (!groupId) continue; // Skip if no group ID is configured for this branch
+
+        if (!recordedBranches.has(branch.toLowerCase())) {
+            // Branch has 0 records today
+            await sock.sendMessage(groupId, {
+                text: `⚠️ *Morning Report Missing*\n\nNo weight records have been submitted for *${branch}* yet today.\n\nPlease ensure the morning data is recorded ASAP. Use the */weigh* command to begin.`,
+            });
+            console.log(`⏰ Sent morning reminder to ${branch} group.`);
+        }
+    }
+}
+
 function startScheduler() {
     // Default: 18:00 daily — override via REPORT_TIME in .env (cron expression)
     const cronExpr = process.env.REPORT_TIME || '0 18 * * *';
@@ -156,6 +191,20 @@ function startScheduler() {
     );
 
     console.log(`⏰ Scheduler started — EOD report at ${cronExpr} (Africa/Johannesburg)`);
+
+    // Morning Check: 9:00 AM daily
+    const morningCronExpr = process.env.MORNING_CHECK_TIME || '0 9 * * *';
+    cron.schedule(
+        morningCronExpr,
+        () => {
+            console.log('⏰ Running morning submission check...');
+            checkMorningSubmissions().catch((err) =>
+                console.error('❌ Morning check error:', err.message)
+            );
+        },
+        { timezone: 'Africa/Johannesburg' }
+    );
+    console.log(`⏰ Scheduler started — Morning check at ${morningCronExpr} (Africa/Johannesburg)`);
 }
 
-module.exports = { startScheduler, sendEndOfDayReport };
+module.exports = { startScheduler, sendEndOfDayReport, checkMorningSubmissions };
