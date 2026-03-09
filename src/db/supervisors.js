@@ -1,15 +1,21 @@
 const supabase = require('./supabase');
 
 /**
- * Fetch all supervisor phone numbers.
- * @returns {Promise<Array<{phone_number: string}>>}
+ * Fetch all supervisor phone numbers, optionally filtered by branch.
+ * @param {string} [branch] 
+ * @returns {Promise<Array<{phone_number: string, branch: string}>>}
  */
-async function getAllSupervisors() {
-    const { data, error } = await supabase
+async function getAllSupervisors(branch = null) {
+    let query = supabase
         .from('supervisors')
-        .select('phone_number')
+        .select('phone_number, branch')
         .order('added_at', { ascending: true });
 
+    if (branch) {
+        query = query.eq('branch', branch);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(`getAllSupervisors: ${error.message}`);
     return data;
 }
@@ -17,11 +23,12 @@ async function getAllSupervisors() {
 /**
  * Add a new supervisor.
  * @param {string} phoneNumber 
+ * @param {string} branch
  */
-async function addSupervisor(phoneNumber) {
+async function addSupervisor(phoneNumber, branch) {
     const { data, error } = await supabase
         .from('supervisors')
-        .insert([{ phone_number: phoneNumber }])
+        .insert([{ phone_number: phoneNumber, branch }])
         .select()
         .single();
 
@@ -46,4 +53,22 @@ async function removeSupervisor(phoneNumber) {
     return true;
 }
 
-module.exports = { getAllSupervisors, addSupervisor, removeSupervisor };
+/**
+ * Get branch for a specific supervisor phone number.
+ * @param {string} phoneNumber
+ * @returns {Promise<string|null>} branch name or null if not found
+ */
+async function getSupervisorBranch(phoneNumber) {
+    const { data, error } = await supabase
+        .from('supervisors')
+        .select('branch')
+        .eq('phone_number', phoneNumber)
+        .single();
+    if (error) {
+        if (error.code === 'PGRST116') return null; // Not found
+        throw new Error(`getSupervisorBranch: ${error.message}`);
+    }
+    return data?.branch || null;
+}
+
+module.exports = { getAllSupervisors, addSupervisor, removeSupervisor, getSupervisorBranch };

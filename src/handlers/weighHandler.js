@@ -1,5 +1,6 @@
 const { getAllProducts } = require('../db/products');
 const { saveRecord } = require('../db/records');
+const { getSupervisorBranch } = require('../db/supervisors');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
@@ -17,6 +18,7 @@ function calcStatus(avg, min, max) {
 /** Start a new /weigh session — fetch products and send menu. */
 async function startWeigh(sock, jid, senderNumber) {
     const products = await getAllProducts();
+    const branch = await getSupervisorBranch(senderNumber) || 'Admin';
 
     let menu = '📋 *Please select the product you are weighing:*\n\n';
     products.forEach((p, i) => {
@@ -24,7 +26,7 @@ async function startWeigh(sock, jid, senderNumber) {
     });
     menu += '\nReply with the *number* of the product.';
 
-    setSession(jid, { step: 'SELECT_PRODUCT', senderNumber, products, samples: [] });
+    setSession(jid, { step: 'SELECT_PRODUCT', senderNumber, branch, products, samples: [] });
     await sock.sendMessage(jid, { text: menu });
 }
 
@@ -122,7 +124,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 }
             }
 
-            const { product, samples, average, avgRounded, status, variance, senderNumber } = session;
+            const { product, samples, average, avgRounded, status, variance, senderNumber, branch } = session;
             const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
 
             // Save to Supabase
@@ -134,6 +136,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 status,
                 variance,
                 recordedBy: senderNumber,
+                branch,
             });
 
             let confirmMsg =

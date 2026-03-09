@@ -47,25 +47,23 @@ async function handleAdminStep(sock, msg, text, jid) {
             case 'ADMIN_MENU': {
                 const choice = parseInt(input, 10);
                 if (choice === 1) {
-                    setSession(jid, { ...session, step: 'ADMIN_ADD_SUPERVISOR' });
+                    setSession(jid, { ...session, step: 'ADMIN_ADD_SUPERVISOR_BRANCH' });
                     await reply(
-                        `➕ *Add Supervisor*\n\n` +
-                        `Enter the new supervisor's full WhatsApp number including country code, but no '+' sign (e.g. 263712345678).\n\n` +
-                        `_Type *back* to return to the menu._`
+                        `🏢 *Select Branch for New Supervisor*\n\n` +
+                        `1️⃣ Harare\n` +
+                        `2️⃣ Mutare\n` +
+                        `3️⃣ Bulawayo\n\n` +
+                        `_Reply with a number or type *back* to return._`
                     );
                 } else if (choice === 2) {
-                    const supervisors = await getAllSupervisors();
-                    if (supervisors.length === 0) {
-                        await backToMenu(sock, jid, session, reply, `❌ No supervisors are currently in the system.\n\n`);
-                        return true;
-                    }
-                    setSession(jid, { ...session, step: 'ADMIN_REMOVE_SUPERVISOR', list: supervisors });
-                    let msg = `➖ *Remove Supervisor*\n\n`;
-                    supervisors.forEach((s, idx) => {
-                        msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} +${s.phone_number}\n`;
-                    });
-                    msg += `\n_Reply with the number to remove, or type *back* to return._`;
-                    await reply(msg);
+                    setSession(jid, { ...session, step: 'ADMIN_REMOVE_SUPERVISOR_BRANCH' });
+                    await reply(
+                        `🏢 *Select Branch to Remove Supervisor From*\n\n` +
+                        `1️⃣ Harare\n` +
+                        `2️⃣ Mutare\n` +
+                        `3️⃣ Bulawayo\n\n` +
+                        `_Reply with a number or type *back* to return._`
+                    );
                 } else if (choice === 3) {
                     setSession(jid, { ...session, step: 'ADMIN_ADD_PRODUCT_NAME' });
                     await reply(
@@ -104,18 +102,59 @@ async function handleAdminStep(sock, msg, text, jid) {
             }
 
             // --- Supervisor Management ---
-            case 'ADMIN_ADD_SUPERVISOR': {
+            case 'ADMIN_ADD_SUPERVISOR_BRANCH': {
+                const branches = { 1: 'Harare', 2: 'Mutare', 3: 'Bulawayo' };
+                const choice = parseInt(input, 10);
+                const branch = branches[choice];
+                if (!branch) {
+                    await reply(`❌ Invalid choice. Reply with 1, 2, or 3.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_ADD_SUPERVISOR_PHONE', branch });
+                await reply(
+                    `➕ *Add Supervisor - ${branch}*\n\n` +
+                    `Enter the new supervisor's full WhatsApp number including country code, but no '+' sign (e.g. 263712345678).\n\n` +
+                    `_Type *back* to return to the menu._`
+                );
+                return true;
+            }
+
+            case 'ADMIN_ADD_SUPERVISOR_PHONE': {
                 const num = input.replace(/\D/g, '');
                 if (num.length < 10) {
                     await reply(`❌ Invalid number. Enter exactly like: 263712345678\n\n_Type *back* to return to the menu._`);
                     return true;
                 }
-                await addSupervisor(num);
-                await backToMenu(sock, jid, session, reply, `✅ Supervisor +${num} has been added.\n\n`);
+                await addSupervisor(num, session.branch);
+                await backToMenu(sock, jid, session, reply, `✅ Supervisor +${num} has been added to *${session.branch}*.\n\n`);
                 return true;
             }
 
-            case 'ADMIN_REMOVE_SUPERVISOR': {
+            case 'ADMIN_REMOVE_SUPERVISOR_BRANCH': {
+                const branches = { 1: 'Harare', 2: 'Mutare', 3: 'Bulawayo' };
+                const choice = parseInt(input, 10);
+                const branch = branches[choice];
+                if (!branch) {
+                    await reply(`❌ Invalid choice. Reply with 1, 2, or 3.\n\n_Type *back* to return._`);
+                    return true;
+                }
+
+                const supervisors = await getAllSupervisors(branch);
+                if (supervisors.length === 0) {
+                    await backToMenu(sock, jid, session, reply, `❌ No supervisors are currently in the *${branch}* system.\n\n`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_REMOVE_SUPERVISOR_SELECT', list: supervisors, branch });
+                let msg = `➖ *Remove Supervisor - ${branch}*\n\n`;
+                supervisors.forEach((s, idx) => {
+                    msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} +${s.phone_number}\n`;
+                });
+                msg += `\n_Reply with the number to remove, or type *back* to return._`;
+                await reply(msg);
+                return true;
+            }
+
+            case 'ADMIN_REMOVE_SUPERVISOR_SELECT': {
                 const idx = parseInt(input, 10) - 1;
                 if (isNaN(idx) || idx < 0 || idx >= session.list.length) {
                     await reply(`❌ Invalid choice. Enter a number from the list, or type *back*._`);
@@ -123,7 +162,7 @@ async function handleAdminStep(sock, msg, text, jid) {
                 }
                 const num = session.list[idx].phone_number;
                 await removeSupervisor(num);
-                await backToMenu(sock, jid, session, reply, `✅ Supervisor +${num} removed.\n\n`);
+                await backToMenu(sock, jid, session, reply, `✅ Supervisor +${num} removed from *${session.branch}*.\n\n`);
                 return true;
             }
 

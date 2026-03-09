@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS weight_records (
   status      TEXT      NOT NULL CHECK (status IN ('Optimal', 'Overweight', 'Underweight')),
   variance    NUMERIC   NOT NULL,
   recorded_by TEXT,
+  branch      TEXT      NOT NULL,
   recorded_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -55,5 +56,6 @@ CREATE TABLE IF NOT EXISTS weight_records (
 CREATE TABLE IF NOT EXISTS supervisors (
   id            SERIAL PRIMARY KEY,
   phone_number  TEXT UNIQUE NOT NULL,
+  branch        TEXT NOT NULL,
   added_at      TIMESTAMPTZ DEFAULT now()
 );

@@ -3,7 +3,7 @@ const supabase = require('./supabase');
 /**
  * Save a new weight record to Supabase.
  */
-async function saveRecord({ productId, samples, average, quantity, status, variance, recordedBy }) {
+async function saveRecord({ productId, samples, average, quantity, status, variance, recordedBy, branch }) {
     const { data, error } = await supabase
         .from('weight_records')
         .insert([{
@@ -17,6 +17,7 @@ async function saveRecord({ productId, samples, average, quantity, status, varia
             status,
             variance,
             recorded_by: recordedBy ?? null,
+            branch: branch || 'Admin', // Default to 'Admin' if not provided
         }])
         .select()
         .single();
