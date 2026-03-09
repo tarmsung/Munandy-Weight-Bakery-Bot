@@ -1,6 +1,7 @@
 const { getAllProducts } = require('../db/products');
 const { saveRecord, deleteRecord } = require('../db/records');
 const { getSupervisorBranch } = require('../db/supervisors');
+const { sendBranchReport } = require('../scheduler');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
@@ -152,7 +153,8 @@ async function handleWeighStep(sock, msg, text, jid) {
 
             confirmMsg += `\n\n` +
                 `Reply *1* to record another batch.\n` +
-                `Reply *2* to delete this batch.`;
+                `Reply *2* to delete this batch.\n` +
+                `Reply *3* to Submit Today's Report to Group.`;
 
             // Transition to new POST_SAVE step instead of clearing
             setSession(jid, { ...session, step: 'POST_SAVE', recordId: savedRecord.id });
@@ -185,8 +187,21 @@ async function handleWeighStep(sock, msg, text, jid) {
                 clearSession(jid);
                 await reply(`🗑️ *Batch Deleted.*\n\nThat batch has been removed from today's records.`);
                 return true;
+            } else if (input === '3') {
+                // Submit manual branch report
+                await reply(`⏳ Compiling today's report for ${session.branch}...`);
+
+                const success = await sendBranchReport(session.branch);
+                clearSession(jid);
+
+                if (success) {
+                    await reply(`✅ Today's report has been sent to the ${session.branch} group!`);
+                } else {
+                    await reply(`⚠️ Could not send the report. Ensure the ${session.branch} WhatsApp Group is properly linked in the system.`);
+                }
+                return true;
             } else {
-                await reply(`❌ Invalid option. Reply *1* to record another batch, or *2* to delete the one you just made.`);
+                await reply(`❌ Invalid option.\n\nReply *1* to record another batch.\nReply *2* to delete the one you just made.\nReply *3* to Submit Today's Report to Group.`);
                 return true;
             }
         }

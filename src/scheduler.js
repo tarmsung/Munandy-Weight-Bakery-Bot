@@ -140,6 +140,55 @@ async function sendEndOfDayReport() {
     }
 }
 
+/**
+ * Manually generate and send a report for a specific branch.
+ */
+async function sendBranchReport(branchName) {
+    const sock = getSocket();
+    if (!sock) {
+        console.warn(`⚠️ No active socket — cannot send report for ${branchName}.`);
+        return false;
+    }
+
+    const branchKey = Object.keys(process.env).find(k => k.startsWith(branchName.toUpperCase()) && k.endsWith('_GROUP_ID'));
+    const groupId = process.env[branchKey];
+
+    if (!groupId) {
+        console.warn(`⚠️ No group ID configured for branch: ${branchName}`);
+        // Optionally send back a message or handle this in the handler
+        return false;
+    }
+
+    const records = await getTodayRecords();
+    const branchRecords = records.filter(r => (r.branch || 'Unknown').toLowerCase() === branchName.toLowerCase());
+
+    const dateLabel = new Date().toLocaleDateString('en-ZA', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const dateStr = new Date().toISOString().split('T')[0];
+
+    if (branchRecords.length === 0) {
+        await sock.sendMessage(groupId, {
+            text: `📭 *Manual Report Triggered - ${branchName}*\n_${dateLabel}_\n\nNo weight records have been recorded for this branch today.`,
+        });
+        return true;
+    }
+
+    const branchAiAnalysis = await generateAIAnalysis(branchRecords);
+    const branchSummaryText = buildSummaryText(branchRecords, dateLabel, branchAiAnalysis);
+    const branchPdfBuffer = await generatePDFReport(branchRecords, dateLabel, branchAiAnalysis);
+
+    await sock.sendMessage(groupId, { text: branchSummaryText });
+    await sock.sendMessage(groupId, {
+        document: branchPdfBuffer,
+        fileName: `QC_${branchName}_Report_${dateStr}.pdf`,
+        mimetype: 'application/pdf',
+    });
+
+    console.log(`📊 Manual branch report sent to ${branchName} group.`);
+    return true;
+}
+
 async function checkMorningSubmissions() {
     const sock = getSocket();
     if (!sock) {
@@ -176,9 +225,9 @@ async function checkMorningSubmissions() {
 }
 
 function startScheduler() {
-    // Default: 18:00 daily — override via REPORT_TIME in .env (cron expression)
+    // End-of-Day auto report is now disabled; triggered manually by supervisors via "3️⃣ Submit Report"
+    /*
     const cronExpr = process.env.REPORT_TIME || '0 18 * * *';
-
     cron.schedule(
         cronExpr,
         () => {
@@ -189,8 +238,8 @@ function startScheduler() {
         },
         { timezone: 'Africa/Johannesburg' }
     );
-
     console.log(`⏰ Scheduler started — EOD report at ${cronExpr} (Africa/Johannesburg)`);
+    */
 
     // Morning Check: 9:00 AM daily
     const morningCronExpr = process.env.MORNING_CHECK_TIME || '0 9 * * *';
@@ -207,4 +256,4 @@ function startScheduler() {
     console.log(`⏰ Scheduler started — Morning check at ${morningCronExpr} (Africa/Johannesburg)`);
 }
 
-module.exports = { startScheduler, sendEndOfDayReport, checkMorningSubmissions };
+module.exports = { startScheduler, sendEndOfDayReport, sendBranchReport, checkMorningSubmissions };
