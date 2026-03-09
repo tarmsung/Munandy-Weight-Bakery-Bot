@@ -98,7 +98,7 @@ async function handleMessage(sock, msg) {
         return;
     }
 
-    if (['help', '!help', '/help'].includes(cmd)) {
+    if (['help', '!help', '/help', 'hi', 'hello'].includes(cmd)) {
         await sock.sendMessage(
             jid,
             {
