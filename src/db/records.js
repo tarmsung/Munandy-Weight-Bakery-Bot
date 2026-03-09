@@ -27,6 +27,19 @@ async function saveRecord({ productId, samples, average, quantity, status, varia
 }
 
 /**
+ * Delete a weight record from Supabase by its ID.
+ */
+async function deleteRecord(id) {
+    const { error } = await supabase
+        .from('weight_records')
+        .delete()
+        .eq('id', id);
+
+    if (error) throw new Error(`deleteRecord: ${error.message}`);
+    return true;
+}
+
+/**
  * Fetch all weight records for today (server date in UTC, adjust if needed).
  * Joins with the products table to include product details.
  */
@@ -92,4 +105,4 @@ async function getRecordsByDate(date) {
     }));
 }
 
-module.exports = { saveRecord, getTodayRecords, getRecordsByDate };
+module.exports = { saveRecord, deleteRecord, getTodayRecords, getRecordsByDate };

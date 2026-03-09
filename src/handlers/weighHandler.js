@@ -1,5 +1,5 @@
 const { getAllProducts } = require('../db/products');
-const { saveRecord } = require('../db/records');
+const { saveRecord, deleteRecord } = require('../db/records');
 const { getSupervisorBranch } = require('../db/supervisors');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
@@ -128,7 +128,7 @@ async function handleWeighStep(sock, msg, text, jid) {
             const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
 
             // Save to Supabase
-            await saveRecord({
+            const savedRecord = await saveRecord({
                 productId: product.id,
                 samples,
                 average,
@@ -149,11 +149,46 @@ async function handleWeighStep(sock, msg, text, jid) {
                 `Status:   ${statusEmoji(status)} *${status}*`;
 
             if (quantity !== null) confirmMsg += `\nQuantity: *${quantity} units*`;
-            confirmMsg += `\n\n_Type /weigh to record another batch._`;
 
-            clearSession(jid);
+            confirmMsg += `\n\n` +
+                `Reply *1* to record another batch.\n` +
+                `Reply *2* to delete this batch.`;
+
+            // Transition to new POST_SAVE step instead of clearing
+            setSession(jid, { ...session, step: 'POST_SAVE', recordId: savedRecord.id });
             await reply(confirmMsg);
             return true;
+        }
+
+        // ── Step 7: Post-Save Options ────────────────────────────────────────────
+        case 'POST_SAVE': {
+            if (input === '1') {
+                // Restart weighing process efficiently
+                let menu = '📋 *Please select the product you are weighing:*\n\n';
+                session.products.forEach((p, i) => {
+                    menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
+                });
+                menu += '\nReply with the *number* of the product.';
+
+                setSession(jid, {
+                    step: 'SELECT_PRODUCT',
+                    senderNumber: session.senderNumber,
+                    branch: session.branch,
+                    products: session.products,
+                    samples: []
+                });
+                await reply(menu);
+                return true;
+            } else if (input === '2') {
+                // Delete the record
+                await deleteRecord(session.recordId);
+                clearSession(jid);
+                await reply(`🗑️ *Batch Deleted.*\n\nThat batch has been removed from today's records.`);
+                return true;
+            } else {
+                await reply(`❌ Invalid option. Reply *1* to record another batch, or *2* to delete the one you just made.`);
+                return true;
+            }
         }
 
         default:
