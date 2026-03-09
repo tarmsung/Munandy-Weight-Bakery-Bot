@@ -73,14 +73,8 @@ async function sendEndOfDayReport() {
     });
     const dateStr = new Date().toISOString().split('T')[0];
 
-    // Recipients: always admins, plus any dynamic supervisors
+    // Recipients: only admins get the Master Report now in their DMs
     const recipients = [...adminNums];
-    try {
-        const dbSupervisors = await getAllSupervisors();
-        dbSupervisors.forEach(s => recipients.push(s.phone_number));
-    } catch (err) {
-        console.error('Failed to fetch supervisors from DB:', err.message);
-    }
 
     if (records.length === 0) {
         for (const num of recipients) {
