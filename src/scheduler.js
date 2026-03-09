@@ -21,16 +21,27 @@ function buildSummaryText(records, dateLabel, aiAnalysis) {
     const under = records.filter((r) => r.status === 'Underweight').length;
 
     let text = `📋 *End-of-Day Quality Control Report*\n_${dateLabel}_\n\n`;
-    text += `Batches: *${records.length}*  |  ✅ ${optimal}  |  🔴 ${over}  |  🔵 ${under}\n`;
+    text += `Total Batches: *${records.length}*\nOverall: ✅ ${optimal}  |  🔴 ${over}  |  🔵 ${under}\n`;
     text += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
+    // Group by branch
+    const grouped = {};
     for (const r of records) {
-        const variance = r.variance >= 0 ? `+${r.variance}g` : `${r.variance}g`;
-        text +=
-            `${statusEmoji(r.status)} *${r.product_name}*  —  ` +
-            `Avg: ${Math.round(r.average)}g  |  Variance: ${variance}`;
-        if (r.quantity) text += `  |  Qty: ${r.quantity}`;
-        text += '\n';
+        const branch = r.branch || 'Unknown';
+        if (!grouped[branch]) grouped[branch] = [];
+        grouped[branch].push(r);
+    }
+
+    for (const [branch, branchRecords] of Object.entries(grouped)) {
+        text += `\n🏢 *${branch.toUpperCase()}*\n`;
+        for (const r of branchRecords) {
+            const variance = r.variance >= 0 ? `+${r.variance}g` : `${r.variance}g`;
+            text +=
+                `${statusEmoji(r.status)} *${r.product_name}*  —  ` +
+                `Avg: ${Math.round(r.average)}g  |  Variance: ${variance}`;
+            if (r.quantity) text += `  |  Qty: ${r.quantity}`;
+            text += '\n';
+        }
     }
 
     if (aiAnalysis) {

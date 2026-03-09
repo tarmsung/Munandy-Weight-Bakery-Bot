@@ -109,34 +109,66 @@ function generatePDFReport(records, dateLabel, aiAnalysis) {
         drawRow(y, cols.map((c) => c.label), { bg: '#2c3e50', bold: true, colors: Array(cols.length).fill('white') });
         y += ROW_HEIGHT;
 
-        // Data rows
-        records.forEach((r, idx) => {
-            const bg = idx % 2 === 0 ? '#f4f6f8' : '#ffffff';
-            const sc = statusColor(r.status);
+        // Data rows grouped by branch
+        const grouped = {};
+        for (const r of records) {
+            const branch = r.branch || 'Unknown';
+            if (!grouped[branch]) grouped[branch] = [];
+            grouped[branch].push(r);
+        }
 
-            // Variance display
-            let varianceDisplay = 'Within range';
-            if (r.variance > 0) varianceDisplay = `+${r.variance}g`;
-            else if (r.variance < 0) varianceDisplay = `${r.variance}g`;
+        for (const [branch, branchRecords] of Object.entries(grouped)) {
+            // Check if we need a new page for the branch header
+            if (y > doc.page.height - doc.page.margins.bottom - ROW_HEIGHT * 2) {
+                doc.addPage();
+                y = doc.page.margins.top;
+                // Redraw header on new page
+                drawRow(y, cols.map((c) => c.label), { bg: '#2c3e50', bold: true, colors: Array(cols.length).fill('white') });
+                y += ROW_HEIGHT;
+            }
 
-            drawRow(
-                y,
-                [
-                    r.product_name,
-                    r.sample1,
-                    r.sample2,
-                    r.sample3,
-                    r.sample4,
-                    `${Math.round(r.average)}g`,
-                    `${r.min_weight}–${r.max_weight}g`,
-                    varianceDisplay,
-                    r.quantity ?? '-',
-                    statusLabel(r.status),
-                ],
-                { bg, colors: [null, null, null, null, null, null, null, null, null, sc] }
-            );
+            // Draw branch separator row
+            doc.rect(PAGE_LEFT, y, totalWidth, ROW_HEIGHT).fill('#e8ecef');
+            doc.font('Helvetica-Bold').fontSize(10).fillColor('#2c3e50')
+                .text(`Branch: ${branch.toUpperCase()}`, PAGE_LEFT + 5, y + 6);
             y += ROW_HEIGHT;
-        });
+
+            branchRecords.forEach((r, idx) => {
+                // Check if we need a new page for the data row
+                if (y > doc.page.height - doc.page.margins.bottom - ROW_HEIGHT) {
+                    doc.addPage();
+                    y = doc.page.margins.top;
+                    drawRow(y, cols.map((c) => c.label), { bg: '#2c3e50', bold: true, colors: Array(cols.length).fill('white') });
+                    y += ROW_HEIGHT;
+                }
+
+                const bg = idx % 2 === 0 ? '#f4f6f8' : '#ffffff';
+                const sc = statusColor(r.status);
+
+                // Variance display
+                let varianceDisplay = 'Within range';
+                if (r.variance > 0) varianceDisplay = `+${r.variance}g`;
+                else if (r.variance < 0) varianceDisplay = `${r.variance}g`;
+
+                drawRow(
+                    y,
+                    [
+                        r.product_name,
+                        r.sample1,
+                        r.sample2,
+                        r.sample3,
+                        r.sample4,
+                        `${Math.round(r.average)}g`,
+                        `${r.min_weight}–${r.max_weight}g`,
+                        varianceDisplay,
+                        r.quantity ?? '-',
+                        statusLabel(r.status),
+                    ],
+                    { bg, colors: [null, null, null, null, null, null, null, null, null, sc] }
+                );
+                y += ROW_HEIGHT;
+            });
+        }
 
         // Bottom border
         doc.rect(PAGE_LEFT, y, totalWidth, 1).fill('#2c3e50');
