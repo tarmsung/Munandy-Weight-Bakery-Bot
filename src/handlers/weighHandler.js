@@ -1,5 +1,5 @@
 const { getAllProducts } = require('../db/products');
-const { saveRecord, deleteRecord } = require('../db/records');
+const { saveRecord, deleteRecord, getTodayRecords } = require('../db/records');
 const { getSupervisorBranch } = require('../db/supervisors');
 const { sendBranchReport } = require('../scheduler');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
@@ -155,6 +155,24 @@ async function handleWeighStep(sock, msg, text, jid) {
                 `Reply *1* to record another batch.\n` +
                 `Reply *2* to delete this batch.\n` +
                 `Reply *3* to Submit Today's Report to Group.`;
+
+            try {
+                const todayRecords = await getTodayRecords();
+                const branchRecords = todayRecords.filter(r => r.branch === branch);
+                const recordedProductIds = new Set(branchRecords.map(r => r.product_id));
+                const recordedNumbers = [];
+                session.products.forEach((p, index) => {
+                    if (recordedProductIds.has(p.id)) {
+                        recordedNumbers.push(index + 1);
+                    }
+                });
+
+                if (recordedNumbers.length > 0) {
+                    confirmMsg += `\n\n💡 _You have recorded product ${recordedNumbers.join(', ')} today._`;
+                }
+            } catch (err) {
+                console.error('Error fetching today records for msg:', err);
+            }
 
             // Transition to new POST_SAVE step instead of clearing
             setSession(jid, { ...session, step: 'POST_SAVE', recordId: savedRecord.id });
