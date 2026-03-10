@@ -211,15 +211,26 @@ async function checkMorningSubmissions() {
         'Bulawayo': process.env.BULAWAYO_GROUP_ID
     };
 
+    const missingBranches = [];
     for (const [branch, groupId] of Object.entries(branchGroups)) {
-        if (!groupId) continue; // Skip if no group ID is configured for this branch
+        if (!groupId) continue;
 
         if (!recordedBranches.has(branch.toLowerCase())) {
-            // Branch has 0 records today
-            await sock.sendMessage(groupId, {
-                text: `⚠️ *Morning Report Missing*\n\nNo weight records have been submitted for *${branch}* yet today.\n\nPlease ensure the morning data is recorded ASAP. Use the */weigh* command to begin.`,
-            });
-            console.log(`⏰ Sent morning reminder to ${branch} group.`);
+            missingBranches.push(branch);
+        }
+    }
+
+    if (missingBranches.length > 0) {
+        const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+        const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
+
+        const alertText = `⚠️ *Morning Report Missing*\n\nNo weight records have been submitted for the following branches yet today:\n\n` +
+            missingBranches.map(b => `• *${b}*`).join('\n') +
+            `\n\n_Please follow up with the supervisors._`;
+
+        for (const num of adminNums) {
+            await sock.sendMessage(`${num}@s.whatsapp.net`, { text: alertText });
+            console.log(`⏰ Sent morning reminder to admin ${num} about branches: ${missingBranches.join(', ')}`);
         }
     }
 }
