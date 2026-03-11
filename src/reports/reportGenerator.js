@@ -18,7 +18,7 @@ function statusLabel(status) {
  * @param {string} [aiAnalysis] - Optional concise AI summary paragraph
  * @returns {Promise<Buffer>}
  */
-function generatePDFReport(records, dateLabel, aiAnalysis) {
+function generatePDFReport(records, dateLabel, aiAnalysis, flourKg = null) {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ margin: 40, size: 'A4' });
         const chunks = [];
@@ -51,6 +51,13 @@ function generatePDFReport(records, dateLabel, aiAnalysis) {
         doc.fontSize(10).font('Helvetica')
             .text(`Batches recorded: ${records.length}   |   ✓ Optimal: ${optimal}   |   ▲ Overweight: ${overweight}   |   ▼ Underweight: ${underweight}`,
                 { align: 'center' });
+
+        if (flourKg !== null) {
+            doc.moveDown(0.4);
+            doc.fontSize(10).font('Helvetica-Bold').fillColor('#7d6608')
+                .text(`🌾 Flour Used Today: ${flourKg} kg`, { align: 'center' });
+            doc.fillColor('#333333');
+        }
 
         if (aiAnalysis) {
             doc.moveDown(1);

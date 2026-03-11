@@ -1,6 +1,7 @@
 const { getAllProducts } = require('../db/products');
 const { saveRecord, deleteRecord, getTodayRecords } = require('../db/records');
 const { getSupervisorBranch } = require('../db/supervisors');
+const { saveFlourLog } = require('../db/flourLogs');
 const { sendBranchReport } = require('../scheduler');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
@@ -53,39 +54,29 @@ async function handleWeighStep(sock, msg, text, jid) {
                 return true;
             }
             const product = session.products[num - 1];
-            setSession(jid, { ...session, step: 'SAMPLE_1', product });
+            setSession(jid, { ...session, step: 'ENTER_SAMPLES', product });
             await reply(
                 `✅ *Product selected: ${product.product_name}*\n\n` +
-                `Now enter the 4 sample weights one at a time.\n\n*Sample 1?*`
+                `Enter all *4 sample weights* separated by commas.\n` +
+                `Example: _341, 352, 348, 355_`
             );
             return true;
         }
 
-        // ── Steps 2–4: First three samples ───────────────────────────────────────
-        case 'SAMPLE_1':
-        case 'SAMPLE_2':
-        case 'SAMPLE_3': {
-            const sampleNum = parseInt(session.step.replace('SAMPLE_', ''), 10);
-            const weight = parseFloat(input);
-            if (isNaN(weight) || weight <= 0) {
-                await reply(`❌ Please enter a valid weight (e.g. *341*).`);
-                return true;
-            }
-            const newSamples = [...session.samples, weight];
-            setSession(jid, { ...session, step: `SAMPLE_${sampleNum + 1}`, samples: newSamples });
-            await reply(`*Sample ${sampleNum + 1}?*`);
-            return true;
-        }
+        // ── Step 2: All four samples at once ─────────────────────────────────────
+        case 'ENTER_SAMPLES': {
+            // Parse comma-separated values and extract numbers
+            const parts = input.split(',').map(s => parseFloat(s.trim()));
 
-        // ── Step 5: Fourth sample → calculate ────────────────────────────────────
-        case 'SAMPLE_4': {
-            const weight = parseFloat(input);
-            if (isNaN(weight) || weight <= 0) {
-                await reply(`❌ Please enter a valid weight (e.g. *360*).`);
+            if (parts.length !== 4 || parts.some(n => isNaN(n) || n <= 0)) {
+                await reply(
+                    `❌ Please enter exactly *4 valid weights* separated by commas.\n` +
+                    `Example: _341, 352, 348, 355_`
+                );
                 return true;
             }
 
-            const allSamples = [...session.samples, weight];
+            const allSamples = parts;
             const avg = allSamples.reduce((a, b) => a + b, 0) / 4;
             const avgRounded = Math.round(avg);
             const { product } = session;
@@ -206,22 +197,46 @@ async function handleWeighStep(sock, msg, text, jid) {
                 await reply(`🗑️ *Batch Deleted.*\n\nThat batch has been removed from today's records.`);
                 return true;
             } else if (input === '3') {
-                // Submit manual branch report
-                await reply(`⏳ Compiling today's report for ${session.branch}...`);
-
-                const success = await sendBranchReport(session.branch);
-                clearSession(jid);
-
-                if (success) {
-                    await reply(`✅ Today's report has been sent to the ${session.branch} group!`);
-                } else {
-                    await reply(`⚠️ Could not send the report. Ensure the ${session.branch} WhatsApp Group is properly linked in the system.`);
-                }
+                // Ask for flour before submitting
+                setSession(jid, { ...session, step: 'FLOUR_INPUT' });
+                await reply(
+                    `🌾 *Before submitting the report:*\n\n` +
+                    `How many *kg of flour* were used today across the whole production?\n` +
+                    `_(Enter a number, e.g. *250*)_`
+                );
                 return true;
             } else {
                 await reply(`❌ Invalid option.\n\nReply *1* to record another batch.\nReply *2* to delete the one you just made.\nReply *3* to Submit Today's Report to Group.`);
                 return true;
             }
+        }
+
+        // ── Step: Flour input → submit report ───────────────────────────────────
+        case 'FLOUR_INPUT': {
+            const flourKg = parseFloat(input);
+            if (isNaN(flourKg) || flourKg <= 0) {
+                await reply(`❌ Please enter a valid flour amount in kg (e.g. *250*).`);
+                return true;
+            }
+
+            // Save flour log to DB
+            try {
+                await saveFlourLog({ branch: session.branch, flourKg, recordedBy: session.senderNumber });
+            } catch (err) {
+                console.error('Failed to save flour log:', err.message);
+            }
+
+            await reply(`⏳ Compiling today's report for ${session.branch}...`);
+
+            const success = await sendBranchReport(session.branch, flourKg);
+            clearSession(jid);
+
+            if (success) {
+                await reply(`✅ Today's report has been sent to the ${session.branch} group!`);
+            } else {
+                await reply(`⚠️ Could not send the report. Ensure the ${session.branch} WhatsApp Group is properly linked in the system.`);
+            }
+            return true;
         }
 
         default:

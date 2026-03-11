@@ -15,13 +15,16 @@ function statusEmoji(status) {
     return status === 'Optimal' ? '✅' : status === 'Overweight' ? '🔴' : '🔵';
 }
 
-function buildSummaryText(records, dateLabel, aiAnalysis) {
+function buildSummaryText(records, dateLabel, aiAnalysis, flourKg = null) {
     const optimal = records.filter((r) => r.status === 'Optimal').length;
     const over = records.filter((r) => r.status === 'Overweight').length;
     const under = records.filter((r) => r.status === 'Underweight').length;
 
     let text = `📋 *End-of-Day Quality Control Report*\n_${dateLabel}_\n\n`;
     text += `Total Batches: *${records.length}*\nOverall: ✅ ${optimal}  |  🔴 ${over}  |  🔵 ${under}\n`;
+    if (flourKg !== null) {
+        text += `🌾 Flour Used Today: *${flourKg} kg*\n`;
+    }
     text += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
     // Group by branch
@@ -143,7 +146,7 @@ async function sendEndOfDayReport() {
 /**
  * Manually generate and send a report for a specific branch.
  */
-async function sendBranchReport(branchName) {
+async function sendBranchReport(branchName, flourKg = null) {
     const sock = getSocket();
     if (!sock) {
         console.warn(`⚠️ No active socket — cannot send report for ${branchName}.`);
@@ -155,7 +158,6 @@ async function sendBranchReport(branchName) {
 
     if (!groupId) {
         console.warn(`⚠️ No group ID configured for branch: ${branchName}`);
-        // Optionally send back a message or handle this in the handler
         return false;
     }
 
@@ -175,8 +177,8 @@ async function sendBranchReport(branchName) {
     }
 
     const branchAiAnalysis = await generateAIAnalysis(branchRecords);
-    const branchSummaryText = buildSummaryText(branchRecords, dateLabel, branchAiAnalysis);
-    const branchPdfBuffer = await generatePDFReport(branchRecords, dateLabel, branchAiAnalysis);
+    const branchSummaryText = buildSummaryText(branchRecords, dateLabel, branchAiAnalysis, flourKg);
+    const branchPdfBuffer = await generatePDFReport(branchRecords, dateLabel, branchAiAnalysis, flourKg);
 
     await sock.sendMessage(groupId, { text: branchSummaryText });
     await sock.sendMessage(groupId, {
