@@ -213,6 +213,15 @@ async function handleWeighStep(sock, msg, text, jid) {
 
         // ── Step: Flour input → submit report ───────────────────────────────────
         case 'FLOUR_INPUT': {
+            if (input.toLowerCase() === 'back') {
+                setSession(jid, { ...session, step: 'POST_SAVE' });
+                await reply(
+                    `Reply *1* to record another batch.\n` +
+                    `Reply *2* to delete this batch.`
+                );
+                return true;
+            }
+
             const flourKg = parseFloat(input);
             if (isNaN(flourKg) || flourKg <= 0) {
                 await reply(`❌ Please enter a valid flour amount in kg (e.g. *250*).`);
