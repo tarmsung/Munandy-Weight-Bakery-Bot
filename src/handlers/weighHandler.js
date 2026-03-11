@@ -202,7 +202,10 @@ async function handleWeighStep(sock, msg, text, jid) {
                 await reply(
                     `🌾 *Before submitting the report:*\n\n` +
                     `How many *kg of flour* were used today across the whole production?\n` +
-                    `_(Enter a number, e.g. *250*)_`
+                    `_(Enter a number, e.g. *250*)_\n\n` +
+                    `Type *back* to:\n` +
+                    `1. Record another batch\n` +
+                    `2. Delete this batch`
                 );
                 return true;
             } else {
