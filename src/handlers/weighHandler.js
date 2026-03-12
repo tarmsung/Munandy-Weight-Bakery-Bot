@@ -197,12 +197,32 @@ async function handleWeighStep(sock, msg, text, jid) {
                 await reply(`🗑️ *Batch Deleted.*\n\nThat batch has been removed from today's records.`);
                 return true;
             } else if (input === '3') {
+                let recordedProductsMsg = '';
+                try {
+                    const todayRecords = await getTodayRecords();
+                    const branchRecords = todayRecords.filter(r => r.branch === session.branch);
+                    const recordedProductIds = new Set(branchRecords.map(r => r.product_id));
+                    const recordedNames = [];
+                    session.products.forEach(p => {
+                        if (recordedProductIds.has(p.id)) {
+                            recordedNames.push(p.product_name);
+                        }
+                    });
+
+                    if (recordedNames.length > 0) {
+                        recordedProductsMsg = `📋 *Summary of Recorded Products:*\n${recordedNames.map(name => `• ${name}`).join('\n')}\n\n`;
+                    }
+                } catch (err) {
+                    console.error('Error fetching today records for summary:', err);
+                }
+
                 // Ask for flour before submitting
                 setSession(jid, { ...session, step: 'FLOUR_INPUT' });
                 await reply(
                     `🌾 *Before submitting the report:*\n\n` +
                     `How many *kg of flour* were used today across the whole production?\n` +
                     `_(Enter a number, e.g. *250*)_\n\n` +
+                    recordedProductsMsg +
                     `Type *back* to:\n` +
                     `1. Record another batch\n` +
                     `2. Delete this batch`
