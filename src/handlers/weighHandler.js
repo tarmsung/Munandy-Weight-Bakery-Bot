@@ -1,5 +1,5 @@
 const { getAllProducts } = require('../db/products');
-const { saveRecord, deleteRecord, getTodayRecords } = require('../db/records');
+const { saveRecord, deleteRecord, getTodayRecords, updateRecord } = require('../db/records');
 const { getSupervisorBranch } = require('../db/supervisors');
 const { saveFlourLog } = require('../db/flourLogs');
 const { sendBranchReport } = require('../scheduler');
@@ -54,13 +54,89 @@ async function handleWeighStep(sock, msg, text, jid) {
                 return true;
             }
             const product = session.products[num - 1];
-            setSession(jid, { ...session, step: 'ENTER_SAMPLES', product });
+
+            try {
+                const todayRecords = await getTodayRecords();
+                const branchRecords = todayRecords.filter(r => r.branch === session.branch);
+                const existingRecord = branchRecords.find(r => r.product_id === product.id);
+
+                if (existingRecord) {
+                    setSession(jid, {
+                        ...session,
+                        step: 'EDIT_OR_RECORD_CHOICE',
+                        product,
+                        existingRecordId: existingRecord.id
+                    });
+                    await reply(
+                        `⚠️ *Notice: You have already recorded ${product.product_name} today.*\n\n` +
+                        `What would you like to do?\n` +
+                        `1. Edit the batch\n` +
+                        `2. Delete it completely\n` +
+                        `3. Record another batch (different product)`
+                    );
+                    return true;
+                }
+            } catch (err) {
+                console.error('Error checking existing records:', err);
+            }
+
+            setSession(jid, { ...session, step: 'ENTER_SAMPLES', product, isEditing: false });
             await reply(
                 `✅ *Product selected: ${product.product_name}*\n\n` +
                 `Enter all *4 sample weights* separated by commas.\n` +
                 `Example: _341, 352, 348, 355_`
             );
             return true;
+        }
+
+        // ── Step 1.5: Edit or Record Choice ─────────────────────────────────────────
+        case 'EDIT_OR_RECORD_CHOICE': {
+            if (input === '1') {
+                setSession(jid, { ...session, step: 'ENTER_SAMPLES', isEditing: true });
+                await reply(
+                    `✏️ *Editing ${session.product.product_name}*\n\n` +
+                    `Enter all *4 NEW sample weights* separated by commas.\n` +
+                    `Example: _341, 352, 348, 355_`
+                );
+                return true;
+            } else if (input === '2') {
+                await deleteRecord(session.existingRecordId);
+
+                let menu = '📋 *Please select the product you are weighing:*\n\n';
+                session.products.forEach((p, i) => {
+                    menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
+                });
+                menu += '\nReply with the *number* of the product.';
+
+                setSession(jid, {
+                    step: 'SELECT_PRODUCT',
+                    senderNumber: session.senderNumber,
+                    branch: session.branch,
+                    products: session.products,
+                    samples: []
+                });
+                await reply(`🗑️ *Batch Deleted.*\n\nThat batch has been removed from today's records.\n\n` + menu);
+                return true;
+            } else if (input === '3') {
+                let menu = '📋 *Please select the product you are weighing:*\n\n';
+                session.products.forEach((p, i) => {
+                    menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
+                });
+                menu += '\nReply with the *number* of the product.';
+
+                setSession(jid, {
+                    step: 'SELECT_PRODUCT',
+                    senderNumber: session.senderNumber,
+                    branch: session.branch,
+                    products: session.products,
+                    samples: []
+                });
+                await reply(menu);
+                return true;
+            } else {
+                await reply(`❌ Invalid option.\n\n1. Edit the batch\n2. Delete it completely\n3. Record another batch`);
+                return true;
+            }
         }
 
         // ── Step 2: All four samples at once ─────────────────────────────────────
@@ -119,20 +195,31 @@ async function handleWeighStep(sock, msg, text, jid) {
             const { product, samples, average, avgRounded, status, variance, senderNumber, branch } = session;
             const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
 
-            // Save to Supabase
-            const savedRecord = await saveRecord({
-                productId: product.id,
-                samples,
-                average,
-                quantity,
-                status,
-                variance,
-                recordedBy: senderNumber,
-                branch,
-            });
+            // Save or Update Supabase
+            let savedRecord;
+            if (session.isEditing) {
+                savedRecord = await updateRecord(session.existingRecordId, {
+                    samples,
+                    average,
+                    quantity,
+                    status,
+                    variance,
+                });
+            } else {
+                savedRecord = await saveRecord({
+                    productId: product.id,
+                    samples,
+                    average,
+                    quantity,
+                    status,
+                    variance,
+                    recordedBy: senderNumber,
+                    branch,
+                });
+            }
 
             let confirmMsg =
-                `✔️ *Record Saved!*\n\n` +
+                `✔️ *${session.isEditing ? 'Record Updated!' : 'Record Saved!'}*\n\n` +
                 `Product:  *${product.product_name}*\n` +
                 `Samples:  ${samples.join(', ')}\n` +
                 `Average:  *${avgRounded}g*\n` +

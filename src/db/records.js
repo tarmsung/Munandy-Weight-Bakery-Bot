@@ -105,4 +105,29 @@ async function getRecordsByDate(date) {
     }));
 }
 
-module.exports = { saveRecord, deleteRecord, getTodayRecords, getRecordsByDate };
+/**
+ * Update an existing weight record in Supabase.
+ */
+async function updateRecord(id, { samples, average, quantity, status, variance }) {
+    const { data, error } = await supabase
+        .from('weight_records')
+        .update({
+            sample1: samples[0],
+            sample2: samples[1],
+            sample3: samples[2],
+            sample4: samples[3],
+            average,
+            quantity: quantity ?? null,
+            status,
+            variance,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) throw new Error(`updateRecord: ${error.message}`);
+    return data;
+}
+
+module.exports = { saveRecord, deleteRecord, getTodayRecords, getRecordsByDate, updateRecord };
+
