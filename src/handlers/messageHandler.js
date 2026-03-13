@@ -45,9 +45,13 @@ async function handleMessage(sock, msg) {
     }
 
     if (!isAuthorized) {
-        // Send a rejection message to strangers
-        await sock.sendMessage(jid, { text: `🚫 You are not authorised to use this ChatBot.` });
-        console.log(`[AUTH FAILED] Replied to unauthorized number: ${senderNumber}`);
+        // Send a rejection message to strangers, but ONLY in private chat (not groups)
+        if (!jid.endsWith('@g.us')) {
+            await sock.sendMessage(jid, { text: `🚫 You are not authorised to use this ChatBot.` });
+            console.log(`[AUTH FAILED] Replied to unauthorized number: ${senderNumber}`);
+        } else {
+            console.log(`[AUTH IGNORED] Unauthorized user ${senderNumber} messaged in group ${jid}`);
+        }
         console.log('[DEBUG RAW MSG]', JSON.stringify(msg, null, 2));
         return;
     }
