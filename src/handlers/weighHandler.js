@@ -278,10 +278,23 @@ async function handleWeighStep(sock, msg, text, jid) {
                 await reply(menu);
                 return true;
             } else if (input === '2') {
-                // Delete the record
+                // Delete the record and return to menu
                 await deleteRecord(session.recordId);
-                clearSession(jid);
-                await reply(`🗑️ *Batch Deleted.*\n\nThat batch has been removed from today's records.`);
+
+                let menu = '📋 *Please select the product you are weighing:*\n\n';
+                session.products.forEach((p, i) => {
+                    menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
+                });
+                menu += '\nReply with the *number* of the product.';
+
+                setSession(jid, {
+                    step: 'SELECT_PRODUCT',
+                    senderNumber: session.senderNumber,
+                    branch: session.branch,
+                    products: session.products,
+                    samples: []
+                });
+                await reply(`🗑️ *Batch Deleted.*\n\nThat batch has been removed from today's records.\n\n` + menu);
                 return true;
             } else if (input === '3') {
                 let recordedProductsMsg = '';
