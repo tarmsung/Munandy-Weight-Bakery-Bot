@@ -27,7 +27,10 @@ INSERT INTO products (product_name, min_weight, max_weight) VALUES
   ('Lemon Scandal',     180, 190),
   ('Scone',             100, 110),
   ('Rock Bun',          195, 205),
-  ('Joy Crunch',        100, 110)
+  ('Joy Crunch',        100, 110),
+  ('Product 15',       330, 345),
+  ('Product 16',       330, 345),
+  ('Product 17',       330, 345)
 ON CONFLICT DO NOTHING;
 
 -- 3. Weight records table
