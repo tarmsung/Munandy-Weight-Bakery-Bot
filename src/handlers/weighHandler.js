@@ -398,8 +398,8 @@ async function handleWeighStep(sock, msg, text, jid) {
         }
 
         default:
-            // Only clear if this isn't an admin session — adminHandler will handle those
-            if (!session.step.startsWith('ADMIN_')) clearSession(jid);
+            // Only clear if this isn't an admin or delete session — those handlers will handle them
+            if (!session.step.startsWith('ADMIN_') && !session.step.startsWith('DELETE_')) clearSession(jid);
             return false;
     }
 }
