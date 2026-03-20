@@ -197,8 +197,9 @@ async function handleWeighStep(sock, msg, text, jid) {
             await reply(
                 `🍰 *How were the ${session.product.product_name} finished?*\n\n` +
                 `1️⃣ Creamed\n` +
-                `2️⃣ Iced\n\n` +
-                `Reply with *1* or *2*.`
+                `2️⃣ Iced\n` +
+                `3️⃣ Skip\n\n` +
+                `Reply with *1*, *2*, or *3*.`
             );
             return true;
         }
@@ -208,8 +209,9 @@ async function handleWeighStep(sock, msg, text, jid) {
             let finishType = null;
             if (input === '1') finishType = 'Creamed';
             else if (input === '2') finishType = 'Iced';
+            else if (input === '3') finishType = null; // Skip
             else {
-                await reply(`❌ Please reply *1* for Creamed or *2* for Iced.`);
+                await reply(`❌ Please reply *1* for Creamed, *2* for Iced, or *3* to Skip.`);
                 return true;
             }
 
@@ -251,7 +253,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 `Status:   ${statusEmoji(status)} *${status}*`;
 
             if (quantity !== null) confirmMsg += `\nQuantity: *${quantity} units*`;
-            confirmMsg += `\nFinish:   *${finishType}*`;
+            if (finishType !== null) confirmMsg += `\nFinish:   *${finishType}*`;
 
             confirmMsg += `\n\n` +
                 `Reply *1* to record another batch.\n` +
