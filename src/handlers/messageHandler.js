@@ -1,7 +1,8 @@
-const { hasSession } = require('../sessions/sessionManager');
+const { hasSession, clearSession } = require('../sessions/sessionManager');
 const { startWeigh, handleWeighStep } = require('./weighHandler');
 const { handleToday } = require('./todayHandler');
 const { startAdminMenu, handleAdminStep } = require('./adminHandler');
+const { startDelete, handleDeleteStep } = require('./deleteHandler');
 const { getAllSupervisors } = require('../db/supervisors');
 const { sendEndOfDayReport } = require('../scheduler');
 
@@ -59,12 +60,15 @@ async function handleMessage(sock, msg) {
     const cmd = text.toLowerCase();
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
-    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'hi', 'hello', 'admin', 'menu'].includes(cmd)) {
+    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'hi', 'hello', 'admin', 'menu', 'delete', '/delete', '!delete'].includes(cmd)) {
         if (hasSession(jid)) clearSession(jid); // Force exit current session if typing a command
     } else {
         // ── Active session: route non-command input to the active state machine
         if (hasSession(jid)) {
             let handled = await handleWeighStep(sock, msg, text, jid);
+            if (!handled) {
+                handled = await handleDeleteStep(sock, msg, text, jid);
+            }
             if (!handled) {
                 handled = await handleAdminStep(sock, msg, text, jid);
             }
@@ -92,6 +96,11 @@ async function handleMessage(sock, msg) {
         return;
     }
 
+    if (['delete', '/delete', '!delete'].includes(cmd)) {
+        await startDelete(sock, jid, senderNumber);
+        return;
+    }
+
     if (['today', '/today', '!today'].includes(cmd)) {
         await handleToday(sock, jid, msg);
         return;
@@ -107,11 +116,12 @@ async function handleMessage(sock, msg) {
             jid,
             {
                 text:
-                    '*🤖 Munandy Weight Bot Commands:*\n\n' +
-                    '*/weigh* — Start a new weighing session\n' +
-                    '*/today* — View today\'s production summary\n' +
-                    '*!ping*  — Check if bot is alive\n' +
-                    '*!help*  — Show this help message',
+                    `*🤖 Munandy Weight Bot Commands:*\n\n` +
+                    `*/weigh*  — Start a new weighing session\n` +
+                    `*/delete* — Delete today's records\n` +
+                    `*/today*  — View today's production summary\n` +
+                    `*!ping*   — Check if bot is alive\n` +
+                    `*!help*   — Show this help message`,
             },
             { quoted: msg }
         );
