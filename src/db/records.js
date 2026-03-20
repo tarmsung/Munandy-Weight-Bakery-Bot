@@ -3,7 +3,7 @@ const supabase = require('./supabase');
 /**
  * Save a new weight record to Supabase.
  */
-async function saveRecord({ productId, samples, average, quantity, status, variance, recordedBy, branch }) {
+async function saveRecord({ productId, samples, average, quantity, status, variance, finishType, recordedBy, branch }) {
     const { data, error } = await supabase
         .from('weight_records')
         .insert([{
@@ -16,6 +16,7 @@ async function saveRecord({ productId, samples, average, quantity, status, varia
             quantity: quantity ?? null,
             status,
             variance,
+            finish_type: finishType ?? null,
             recorded_by: recordedBy ?? null,
             branch: branch || 'Admin', // Default to 'Admin' if not provided
         }])
@@ -108,7 +109,7 @@ async function getRecordsByDate(date) {
 /**
  * Update an existing weight record in Supabase.
  */
-async function updateRecord(id, { samples, average, quantity, status, variance }) {
+async function updateRecord(id, { samples, average, quantity, status, variance, finishType }) {
     const { data, error } = await supabase
         .from('weight_records')
         .update({
@@ -120,6 +121,7 @@ async function updateRecord(id, { samples, average, quantity, status, variance }
             quantity: quantity ?? null,
             status,
             variance,
+            finish_type: finishType ?? null,
         })
         .eq('id', id)
         .select()

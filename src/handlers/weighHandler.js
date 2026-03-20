@@ -181,7 +181,7 @@ async function handleWeighStep(sock, msg, text, jid) {
             return true;
         }
 
-        // ── Step 6: Quantity → save to Supabase ──────────────────────────────────
+        // ── Step 6: Quantity → ask finish type ───────────────────────────────────
         case 'QUANTITY': {
             let quantity = null;
             if (input.toLowerCase() !== 'skip') {
@@ -192,7 +192,28 @@ async function handleWeighStep(sock, msg, text, jid) {
                 }
             }
 
-            const { product, samples, average, avgRounded, status, variance, senderNumber, branch } = session;
+            // Store quantity and move to finish type selection
+            setSession(jid, { ...session, step: 'FINISH_TYPE', quantity });
+            await reply(
+                `🍰 *How were the ${session.product.product_name} finished?*\n\n` +
+                `1️⃣ Creamed\n` +
+                `2️⃣ Iced\n\n` +
+                `Reply with *1* or *2*.`
+            );
+            return true;
+        }
+
+        // ── Step 6.5: Finish type → save to Supabase ─────────────────────────────
+        case 'FINISH_TYPE': {
+            let finishType = null;
+            if (input === '1') finishType = 'Creamed';
+            else if (input === '2') finishType = 'Iced';
+            else {
+                await reply(`❌ Please reply *1* for Creamed or *2* for Iced.`);
+                return true;
+            }
+
+            const { product, samples, average, avgRounded, status, variance, quantity, senderNumber, branch } = session;
             const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
 
             // Save or Update Supabase
@@ -204,6 +225,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                     quantity,
                     status,
                     variance,
+                    finishType,
                 });
             } else {
                 savedRecord = await saveRecord({
@@ -213,6 +235,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                     quantity,
                     status,
                     variance,
+                    finishType,
                     recordedBy: senderNumber,
                     branch,
                 });
@@ -228,6 +251,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 `Status:   ${statusEmoji(status)} *${status}*`;
 
             if (quantity !== null) confirmMsg += `\nQuantity: *${quantity} units*`;
+            confirmMsg += `\nFinish:   *${finishType}*`;
 
             confirmMsg += `\n\n` +
                 `Reply *1* to record another batch.\n` +
@@ -252,8 +276,8 @@ async function handleWeighStep(sock, msg, text, jid) {
                 console.error('Error fetching today records for msg:', err);
             }
 
-            // Transition to new POST_SAVE step instead of clearing
-            setSession(jid, { ...session, step: 'POST_SAVE', recordId: savedRecord.id });
+            // Transition to POST_SAVE
+            setSession(jid, { ...session, step: 'POST_SAVE', recordId: savedRecord.id, finishType });
             await reply(confirmMsg);
             return true;
         }
