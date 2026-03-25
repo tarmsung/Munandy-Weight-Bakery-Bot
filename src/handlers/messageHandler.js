@@ -29,16 +29,29 @@ async function handleMessage(sock, msg) {
 
     // When WhatsApp uses LID addressing, remoteJidAlt holds the real phone number
     const altJid = msg.key.remoteJidAlt;
-    const senderNumber = altJid
-        ? altJid.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '')
-        : sender.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
+    
+    // Attempt to extract from sender or fallback to altJid
+    let senderNumber = sender.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
+    
+    if (sender.includes('@lid')) {
+        // If we only have LID but there's an altJid (which contains the real number), use it
+        if (altJid) {
+            senderNumber = altJid.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
+        }
+    }
+
     console.log(`[MSG] Raw Sender: ${sender} | Processed: ${senderNumber} | Text: ${text}`);
 
     // ── Authorization Check ────────────────────────────────────────────────────
-    // Only allow ADMIN NUMBERS or registered SUPERVISORS to talk to the bot
+    // Only allow ADMIN NUMBERS, ADMIN LIDS, or registered SUPERVISORS to talk to the bot
     const adminNumsStr = process.env.ADMIN_NUMBERS || '';
     const adminNums = adminNumsStr.split(',').map(n => n.trim());
-    let isAuthorized = adminNums.includes(senderNumber);
+    
+    const adminLidsStr = process.env.ADMIN_LIDS || '';
+    const adminLids = adminLidsStr.split(',').map(n => n.trim());
+
+    // Check against standard numbers OR explicitly known LIDs
+    let isAuthorized = adminNums.includes(senderNumber) || adminLids.includes(senderNumber);
 
     if (!isAuthorized) {
         try {

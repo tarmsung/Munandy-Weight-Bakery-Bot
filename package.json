@@ -25,6 +25,7 @@
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "dotenv": "^17.3.1",
     "node-cron": "^4.2.1",
+    "node-html-to-image": "^5.0.0",
     "openai": "^6.27.0",
     "pdfkit": "^0.17.2",
     "pino": "^10.3.1",
