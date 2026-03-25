@@ -69,10 +69,8 @@ async function getAllActiveVehicles() {
     try {
         const { data, error } = await supabase
             .from('vehicles')
-            .select('registration, nickname, make, branch')
-            .eq('is_active', true)
-            .order('branch', { ascending: true })
-            .order('nickname', { ascending: true });
+            .select('registration, make, model')
+            .order('registration', { ascending: true });
 
         if (error) throw error;
         return data || [];

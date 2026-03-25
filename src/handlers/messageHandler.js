@@ -31,12 +31,13 @@ async function handleMessage(sock, msg) {
     const altJid = msg.key.remoteJidAlt;
     
     // Attempt to extract from sender or fallback to altJid
-    let senderNumber = sender.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
+    const extractPhoneNumber = (jid) => jid.split('@')[0].split(':')[0];
+    let senderNumber = extractPhoneNumber(sender);
     
     if (sender.includes('@lid')) {
         // If we only have LID but there's an altJid (which contains the real number), use it
         if (altJid) {
-            senderNumber = altJid.replace(/@s\.whatsapp\.net|@g\.us|@lid/, '');
+            senderNumber = extractPhoneNumber(altJid);
         }
     }
 

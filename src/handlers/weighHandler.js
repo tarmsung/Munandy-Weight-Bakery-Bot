@@ -28,7 +28,7 @@ async function startWeigh(sock, jid, senderNumber) {
     });
     menu += '\nReply with the *number* of the product.';
 
-    setSession(jid, { step: 'SELECT_PRODUCT', senderNumber, branch, products, samples: [] });
+    setSession(jid, { flowType: 'weigh', step: 'SELECT_PRODUCT', senderNumber, branch, products, samples: [] });
     await sock.sendMessage(jid, { text: menu });
 }
 
@@ -109,6 +109,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 menu += '\nReply with the *number* of the product.';
 
                 setSession(jid, {
+                    flowType: 'weigh',
                     step: 'SELECT_PRODUCT',
                     senderNumber: session.senderNumber,
                     branch: session.branch,
@@ -125,6 +126,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 menu += '\nReply with the *number* of the product.';
 
                 setSession(jid, {
+                    flowType: 'weigh',
                     step: 'SELECT_PRODUCT',
                     senderNumber: session.senderNumber,
                     branch: session.branch,
@@ -295,6 +297,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 menu += '\nReply with the *number* of the product.';
 
                 setSession(jid, {
+                    flowType: 'weigh',
                     step: 'SELECT_PRODUCT',
                     senderNumber: session.senderNumber,
                     branch: session.branch,
@@ -314,6 +317,7 @@ async function handleWeighStep(sock, msg, text, jid) {
                 menu += '\nReply with the *number* of the product.';
 
                 setSession(jid, {
+                    flowType: 'weigh',
                     step: 'SELECT_PRODUCT',
                     senderNumber: session.senderNumber,
                     branch: session.branch,
