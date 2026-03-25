@@ -1,4 +1,6 @@
-const { hasSession, clearSession } = require('../sessions/sessionManager');
+const { hasSession, clearSession, getSession, setSession } = require('../sessions/sessionManager');
+console.log('[DEBUG] messageHandler.js loaded');
+
 const { startWeigh, handleWeighStep } = require('./weighHandler');
 const { handleToday } = require('./todayHandler');
 const { startAdminMenu, handleAdminStep } = require('./adminHandler');
@@ -6,8 +8,8 @@ const { startDelete, handleDeleteStep } = require('./deleteHandler');
 const { startVan, handleVanStep } = require('../vehicle/vanHandler');
 const { handleRouteMessage } = require('../vehicle/routeFlow');
 const { handleEditMessage } = require('../vehicle/editFlow');
-const { getSession, setSession } = require('../sessions/sessionManager');
 const { getAllSupervisors } = require('../db/supervisors');
+
 const { sendEndOfDayReport } = require('../scheduler');
 
 function getMessageText(msg) {
