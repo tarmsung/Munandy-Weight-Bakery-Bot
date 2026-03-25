@@ -14,7 +14,13 @@ async function askNextChecklistItem(sock, jid, session) {
     if (session.checklistIndex < checklistItems.length) {
         const item = checklistItems[session.checklistIndex];
         const prefix = session.isEditing ? "(Editing) " : "";
-        const msg = `${prefix}${item} in good condition? Reply *Y* for yes or *N* for no, or *cancel* to end the session.`;
+        
+        let msg;
+        if (item.endsWith('?')) {
+            msg = `${prefix}${item}\n\nReply *Y* for yes or *N* for no, or *cancel* to end the session.`;
+        } else {
+            msg = `${prefix}${item} in good condition? Reply *Y* for yes or *N* for no, or *cancel* to end the session.`;
+        }
         await sock.sendMessage(jid, { text: msg });
     } else {
         // Checklist complete
@@ -22,6 +28,41 @@ async function askNextChecklistItem(sock, jid, session) {
         await sock.sendMessage(jid, { text: "Please enter any additional comments, or reply *none*." });
     }
 }
+
+/** Finalize and save the inspection report */
+async function finalizeSubmission(sock, jid, session) {
+    try {
+        if (session.isEditing) {
+            // UPDATE
+            await updateReport(session.editingReportId, 'van', {
+                checklist: session.checklistResults,
+                comments:  session.comments || ''
+            });
+            // Regenerate image with Edited label
+            await reportHelper.sendReportToGroup(sock, { ...session, isEdited: true });
+            await sock.sendMessage(jid, { text: "Report updated successfully. ✅" });
+        } else {
+            // INSERT
+            const reportData = {
+                driverId:     session.driverID,
+                vehicleReg:   session.vehicleReg,
+                checklist:    session.checklistResults,
+                comments:     session.comments || '',
+                reporterJid:  jid
+            };
+            await saveInspectionReport(reportData);
+            await reportHelper.sendReportToGroup(sock, session);
+            await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! 🚗" });
+        }
+    } catch (err) {
+        console.error("Failed to save/update report:", err);
+        await sock.sendMessage(jid, { text: "An error occurred while saving your report. Please contact an administrator." });
+    }
+    
+    // Cleanup
+    clearSession(jid);
+}
+
 
 /** Handle each step of an active van session */
 async function handleVanStep(sock, msg, text, jid) {
@@ -97,6 +138,19 @@ async function handleVanStep(sock, msg, text, jid) {
                     fault_description: input
                 });
                 
+                // --- SHORT-CIRCUIT LOGIC ---
+                // If the first question ("Is the car running?") is failed, stop and submit immediately.
+                if (session.checklistIndex === 0) {
+                    const finalSession = {
+                        ...session,
+                        checklistResults: results,
+                        comments: `[AUTO-SUBMIT: Car not running] ${input}`
+                    };
+                    setSession(jid, finalSession);
+                    await finalizeSubmission(sock, jid, finalSession);
+                    return true;
+                }
+
                 // Proceed to next item
                 const nextSession = {
                     ...session,
@@ -148,38 +202,10 @@ async function handleVanStep(sock, msg, text, jid) {
             const finalSession = { ...session, comments: finalComments };
             setSession(jid, finalSession);
             
-            try {
-                if (finalSession.isEditing) {
-                    // UPDATE
-                    await updateReport(finalSession.editingReportId, 'van', {
-                        checklist: finalSession.checklistResults,
-                        comments:  finalSession.comments
-                    });
-                    // Regenerate image with Edited label
-                    await reportHelper.sendReportToGroup(sock, { ...finalSession, isEdited: true });
-                    await sock.sendMessage(jid, { text: "Report updated successfully. ✅" });
-                } else {
-                    // INSERT
-                    const reportData = {
-                        driverId:     finalSession.driverID,
-                        vehicleReg:   finalSession.vehicleReg,
-                        checklist:    finalSession.checklistResults,
-                        comments:     finalSession.comments,
-                        reporterJid:  jid
-                    };
-                    await saveInspectionReport(reportData);
-                    await reportHelper.sendReportToGroup(sock, finalSession);
-                    await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! 🚗" });
-                }
-            } catch (err) {
-                console.error("Failed to save/update report:", err);
-                await sock.sendMessage(jid, { text: "An error occurred while saving your report. Please contact an administrator." });
-            }
-            
-            // Cleanup
-            clearSession(jid);
+            await finalizeSubmission(sock, jid, finalSession);
             return true;
         }
+
 
         default:
             clearSession(jid);
