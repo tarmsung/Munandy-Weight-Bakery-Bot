@@ -3,6 +3,10 @@ const { startWeigh, handleWeighStep } = require('./weighHandler');
 const { handleToday } = require('./todayHandler');
 const { startAdminMenu, handleAdminStep } = require('./adminHandler');
 const { startDelete, handleDeleteStep } = require('./deleteHandler');
+const { startVan, handleVanStep } = require('../vehicle/vanHandler');
+const { handleRouteMessage } = require('../vehicle/routeFlow');
+const { handleEditMessage } = require('../vehicle/editFlow');
+const { getSession, setSession } = require('../sessions/sessionManager');
 const { getAllSupervisors } = require('../db/supervisors');
 const { sendEndOfDayReport } = require('../scheduler');
 
@@ -60,11 +64,23 @@ async function handleMessage(sock, msg) {
     const cmd = text.toLowerCase();
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
-    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'hi', 'hello', 'admin', 'menu', 'delete', '/delete', '!delete'].includes(cmd)) {
+    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'hi', 'hello', 'admin', 'menu', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
         if (hasSession(jid)) clearSession(jid); // Force exit current session if typing a command
     } else {
         // ── Active session: route non-command input to the active state machine
         if (hasSession(jid)) {
+            const session = getSession(jid);
+            if (session.flowType === 'van') {
+                await handleVanStep(sock, msg, text, jid);
+                return;
+            } else if (session.flowType === 'route' || session.flow === 'route') {
+                await handleRouteMessage(sock, jid, text, session);
+                return;
+            } else if (session.flowType === 'edit' || session.flow === 'edit') {
+                await handleEditMessage(sock, jid, text, session);
+                return;
+            }
+
             let handled = await handleWeighStep(sock, msg, text, jid);
             if (!handled) {
                 handled = await handleDeleteStep(sock, msg, text, jid);
@@ -98,6 +114,23 @@ async function handleMessage(sock, msg) {
 
     if (['delete', '/delete', '!delete'].includes(cmd)) {
         await startDelete(sock, jid, senderNumber);
+        return;
+    }
+
+    if (['van', '/van', '!van'].includes(cmd)) {
+        await startVan(sock, jid);
+        return;
+    }
+
+    if (['route', '/route', '!route'].includes(cmd)) {
+        setSession(jid, { flowType: 'route', step: 'ROUTE_AWAIT_DRIVER_ID' });
+        await sock.sendMessage(jid, { text: 'Enter your driver ID' });
+        return;
+    }
+
+    if (['edit', '/edit', '!edit'].includes(cmd)) {
+        setSession(jid, { flowType: 'edit', step: 'EDIT_SELECT_TYPE' });
+        await sock.sendMessage(jid, { text: "Which type of report would you like to edit?\n1. Van Inspection\n2. Route Report\n\nReply with the number or *cancel*." });
         return;
     }
 
