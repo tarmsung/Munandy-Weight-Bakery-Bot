@@ -84,26 +84,39 @@ async function handleMessage(sock, msg) {
         // ── Active session: route non-command input to the active state machine
         if (hasSession(jid)) {
             const session = getSession(jid);
+            console.log(`[DEBUG] Session found for ${jid}: flowType=${session.flowType}, step=${session.step}, flow=${session.flow}`);
+            
             if (session.flowType === 'van') {
+                console.log(`[DEBUG] Routing to handleVanStep`);
                 await handleVanStep(sock, msg, text, jid);
                 return;
             } else if (session.flowType === 'route' || session.flow === 'route') {
+                console.log(`[DEBUG] Routing to handleRouteMessage`);
                 await handleRouteMessage(sock, jid, text, session);
                 return;
             } else if (session.flowType === 'edit' || session.flow === 'edit') {
+                console.log(`[DEBUG] Routing to handleEditMessage`);
                 await handleEditMessage(sock, jid, text, session);
                 return;
             }
 
+            console.log(`[DEBUG] Testing weigh flow`);
             let handled = await handleWeighStep(sock, msg, text, jid);
+            console.log(`[DEBUG] handleWeighStep returned: ${handled}`);
+
             if (!handled) {
+                console.log(`[DEBUG] Testing delete flow`);
                 handled = await handleDeleteStep(sock, msg, text, jid);
+                console.log(`[DEBUG] handleDeleteStep returned: ${handled}`);
             }
             if (!handled) {
+                console.log(`[DEBUG] Testing admin flow`);
                 handled = await handleAdminStep(sock, msg, text, jid);
+                console.log(`[DEBUG] handleAdminStep returned: ${handled}`);
             }
             if (handled) return;
         }
+
     }
 
     // ── Commands ───────────────────────────────────────────────────────────────

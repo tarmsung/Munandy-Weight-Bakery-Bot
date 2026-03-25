@@ -44,6 +44,7 @@ async function handleWeighStep(sock, msg, text, jid) {
         sock.sendMessage(jid, { text: message }, { quoted: msg });
 
     const input = text.trim();
+    console.log(`[DEBUG] handleWeighStep: step=${session.step}, input="${input}"`);
 
     switch (session.step) {
         // ── Step 1: Worker picks product ─────────────────────────────────────────

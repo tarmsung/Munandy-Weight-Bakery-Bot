@@ -35,6 +35,7 @@ async function handleAdminStep(sock, msg, text, jid) {
 
     const reply = (message) => sock.sendMessage(jid, { text: message }, { quoted: msg });
     const input = text.trim();
+    console.log(`[DEBUG] handleAdminStep: step=${session.step}, input="${input}"`);
 
     // ── Global back / cancel ──────────────────────────────────────────────────
     if (['back', '0', 'cancel', 'menu'].includes(input.toLowerCase()) && session.step !== 'ADMIN_MENU') {
