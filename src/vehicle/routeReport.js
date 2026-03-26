@@ -216,9 +216,8 @@ async function sendRouteReportToGroup(sock, sessionData) {
             html: htmlContent,
             quality: 100,
             type: 'jpeg',
-            puppeteerArgs: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-            puppeteerOptions: {
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            puppeteerArgs: {
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
             }
         });
 
