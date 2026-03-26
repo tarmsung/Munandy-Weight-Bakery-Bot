@@ -1,0 +1,18 @@
+🔍 Checking Supabase tables...
+✅ Table [products]: 16 rows found.
+✅ Table [supervisors]: 6 rows found.
+✅ Table [weight_records]: 126 rows found.
+✅ Table [drivers]: 10 rows found.
+✅ Table [vehicles]: 10 rows found.
+✅ Table [routes]: 50 rows found.
+
+🔍 Checking sample data for weight flow...
+👉 Product: Rolls (4) (ID: 1, Range: 330-345)
+👉 Product: Hot Dogs (4) (ID: 2, Range: 330-345)
+👉 Product: Plain Buns (4) (ID: 3, Range: 175-190)
+👉 Supervisor: 263775842865 (Branch: Harare)
+👉 Supervisor: 263787783044 (Branch: Mutare)
+👉 Supervisor: 263777534882 (Branch: Bulawayo)
+👉 Supervisor: 263714161997 (Branch: Harare)
+👉 Supervisor: 263776414216 (Branch: Bulawayo)
+👉 Supervisor: 263715961756 (Branch: Harare)
