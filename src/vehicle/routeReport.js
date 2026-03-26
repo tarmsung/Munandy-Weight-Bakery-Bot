@@ -211,12 +211,15 @@ async function sendRouteReportToGroup(sock, sessionData) {
     const htmlContent = buildRouteReportHTML(sessionData);
 
     try {
-        console.log('Generating route report image...');
+        console.log('[DEBUG] Generating route report image with sandbox flags...');
         const imageBuffer = await nodeHtmlToImage({
             html: htmlContent,
             quality: 100,
             type: 'jpeg',
-            puppeteerArgs: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            puppeteerArgs: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+            puppeteerOptions: {
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            }
         });
 
         console.log('Sending route report image to group...');

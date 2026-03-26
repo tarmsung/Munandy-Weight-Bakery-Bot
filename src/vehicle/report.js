@@ -201,13 +201,16 @@ async function sendReportToGroup(sock, sessionData) {
     const htmlContent = buildReportHTML(sessionData);
     
     try {
-        console.log('Generating image from HTML...');
+        console.log('[DEBUG] Generating image from HTML with sandbox flags...');
         // Generate the image buffer
         const imageBuffer = await nodeHtmlToImage({
             html: htmlContent,
             quality: 100,
             type: 'jpeg',
-            puppeteerArgs: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            puppeteerArgs: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+            puppeteerOptions: {
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            }
         });
         
         console.log('Sending report image to group...');
