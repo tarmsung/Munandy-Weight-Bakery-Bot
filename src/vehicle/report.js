@@ -206,7 +206,8 @@ async function sendReportToGroup(sock, sessionData) {
         const imageBuffer = await nodeHtmlToImage({
             html: htmlContent,
             quality: 100,
-            type: 'jpeg'
+            type: 'jpeg',
+            puppeteerArgs: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
         });
         
         console.log('Sending report image to group...');
@@ -217,6 +218,26 @@ async function sendReportToGroup(sock, sessionData) {
         console.log('Report image successfully sent to group.');
     } catch (err) {
         console.error('Failed to send report image to group:', err);
+        
+        // Fallback to text if image fails
+        let fallbackText = `🚐 *Vehicle Inspection Report*\n` +
+            `*Vehicle:* ${sessionData.vehicleMake} ${sessionData.vehicleModel} ([${sessionData.vehicleReg}])\n` +
+            `*Driver:* ${sessionData.driverName}\n` +
+            `*Branch:* ${sessionData.branch}\n` +
+            `*Status:* ${sessionData.checklistResults.filter(r => r.status === 'OK').length} OK, ${sessionData.checklistResults.filter(r => r.status !== 'OK').length} Faults\n`;
+        
+        const faults = sessionData.checklistResults.filter(r => r.status !== 'OK');
+        if (faults.length > 0) {
+            fallbackText += `\n*Faults:*\n` + faults.map(f => `• ${f.item}: ${f.fault_description}`).join('\n');
+        }
+        
+        if (sessionData.comments && sessionData.comments !== 'none') {
+            fallbackText += `\n\n*Comments:* ${sessionData.comments}`;
+        }
+        
+        fallbackText += `\n\n_(Image generation failed on server)_`;
+        
+        await sock.sendMessage(notifyJid, { text: fallbackText });
     }
 }
 

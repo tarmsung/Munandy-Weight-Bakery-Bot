@@ -215,7 +215,8 @@ async function sendRouteReportToGroup(sock, sessionData) {
         const imageBuffer = await nodeHtmlToImage({
             html: htmlContent,
             quality: 100,
-            type: 'jpeg'
+            type: 'jpeg',
+            puppeteerArgs: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
         });
 
         console.log('Sending route report image to group...');
