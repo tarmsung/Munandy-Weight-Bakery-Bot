@@ -69,7 +69,8 @@ async function getAllActiveVehicles() {
     try {
         const { data, error } = await supabase
             .from('vehicles')
-            .select('registration, make, model')
+            .select('registration, make, model, nickname, branch')
+            .eq('is_active', true)
             .order('registration', { ascending: true });
 
         if (error) throw error;
@@ -139,11 +140,99 @@ async function updateReport(id, type, updateData) {
     }
 }
 
+async function addDriver(id, name, branch) {
+    try {
+        const { data, error } = await supabase
+            .from('drivers')
+            .insert([{ id, name, branch }])
+            .select()
+            .single();
+
+        if (error) {
+            if (error.code === '23505') throw new Error('Driver ID already exists');
+            throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error in addDriver:', err);
+        throw err;
+    }
+}
+
+async function deleteDriver(id) {
+    try {
+        const { error } = await supabase
+            .from('drivers')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        return true;
+    } catch (err) {
+        console.error('Error in deleteDriver:', err);
+        throw err;
+    }
+}
+
+async function getAllDrivers() {
+    try {
+        const { data, error } = await supabase
+            .from('drivers')
+            .select('*')
+            .order('name', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
+    } catch (err) {
+        console.error('Error in getAllDrivers:', err);
+        throw err;
+    }
+}
+
+async function addVehicle({ registration, make, model, nickname, branch }) {
+    try {
+        const { data, error } = await supabase
+            .from('vehicles')
+            .insert([{ registration, make, model, nickname, branch, is_active: true }])
+            .select()
+            .single();
+
+        if (error) {
+            if (error.code === '23505') throw new Error('Vehicle registration already exists');
+            throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error in addVehicle:', err);
+        throw err;
+    }
+}
+
+async function deleteVehicle(registration) {
+    try {
+        const { error } = await supabase
+            .from('vehicles')
+            .delete()
+            .eq('registration', registration);
+
+        if (error) throw error;
+        return true;
+    } catch (err) {
+        console.error('Error in deleteVehicle:', err);
+        throw err;
+    }
+}
+
 module.exports = {
     lookupDriverAndVehicle,
     saveInspectionReport,
     getAllActiveVehicles,
     getRecentUserReports,
     getReportById,
-    updateReport
+    updateReport,
+    addDriver,
+    deleteDriver,
+    getAllDrivers,
+    addVehicle,
+    deleteVehicle
 };
