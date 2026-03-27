@@ -229,7 +229,10 @@ async function generateImageReport(records, dateLabel, aiAnalysis, flourKg = nul
     return await nodeHtmlToImage({
         html: htmlTemplate,
         quality: 100,
-        type: 'png'
+        type: 'png',
+        puppeteerArgs: {
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        },
     });
 }
 
