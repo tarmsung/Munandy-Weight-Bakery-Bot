@@ -6,6 +6,7 @@ const { getAllSupervisors } = require('./db/supervisors');
 const { generatePDFReport } = require('./reports/reportGenerator');
 const { generateAIAnalysis } = require('./reports/aiAnalyzer');
 const { getSocket } = require('./state');
+const { initDailyFleetReportCron } = require('./vehicle/dailyReport');
 
 // Folder to archive generated PDFs locally
 const REPORTS_DIR = path.join(__dirname, '..', 'reports');
@@ -267,6 +268,10 @@ function startScheduler() {
         { timezone: 'Africa/Johannesburg' }
     );
     console.log(`⏰ Scheduler started — Morning check at ${morningCronExpr} (Africa/Johannesburg)`);
+
+    // ── Daily Fleet Report: Cron job for automated fleet status ─────────────
+    const sock = getSocket();
+    initDailyFleetReportCron(sock);
 }
 
 module.exports = { startScheduler, sendEndOfDayReport, sendBranchReport, checkMorningSubmissions };
