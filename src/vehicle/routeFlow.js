@@ -7,6 +7,8 @@
 const db = { ...require('../db/vehicles'), ...require('../db/routes') };
 const sessionManager = require('../sessions/sessionManager');
 const { sendRouteReportToGroup } = require('./routeReport');
+const { processTripKm } = require('../db/service');
+const { sendServiceAlertImage } = require('./serviceAlert');
 
 // Branch display order for the route list message
 const BRANCH_ORDER = ['Bulawayo', 'Harare', 'Mutare'];
@@ -297,6 +299,19 @@ async function finalizeRouteReport(sock, jid, session) {
             // INSERT new report
             await db.saveRouteReport(session.driverID, session.vehicleRoutes, jid);
             console.log(`Route report submitted by driver ${session.driverID}`);
+
+            // ── Service KM Accumulation ────────────────────────
+            try {
+                const alertVehicles = await processTripKm(session.vehicleRoutes);
+                if (alertVehicles.length > 0) {
+                    // Fire-and-forget: don't wait for image send to complete
+                    sendServiceAlertImage(sock, alertVehicles).catch(e =>
+                        console.error('[Service Alert] Error sending image:', e.message)
+                    );
+                }
+            } catch (svcErr) {
+                console.error('[Service Alert] Failed to process trip km:', svcErr.message);
+            }
         }
 
         await sendRouteReportToGroup(sock, {

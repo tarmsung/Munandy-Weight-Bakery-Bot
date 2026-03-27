@@ -2,6 +2,7 @@ const { getAllProducts, addProduct, updateProductRange, deleteProduct } = requir
 const { getAllSupervisors, addSupervisor, removeSupervisor } = require('../db/supervisors');
 const { addDriver, deleteDriver, getAllDrivers, addVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
 const { getAllInsuranceStatus, upsertInsurance } = require('../db/insurance');
+const { getVehicleServiceStatus, logServiceCompleted } = require('../db/service');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
@@ -18,7 +19,8 @@ const ADMIN_MENU_TEXT =
     `8️⃣ Add a Vehicle\n` +
     `9️⃣ Delete a Vehicle\n` +
     `1️⃣0️⃣ Insurance Management\n` +
-    `1️⃣1️⃣ Exit Admin Mode\n\n` +
+    `1️⃣1️⃣ Service Management\n` +
+    `1️⃣2️⃣ Exit Admin Mode\n\n` +
     `_Reply with a number. Type *back* at any step to return here._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
@@ -149,10 +151,19 @@ async function handleAdminStep(sock, msg, text, jid) {
                         `_Reply with a number or type *back*._`
                     );
                 } else if (choice === 11) {
+                    // Service Management
+                    setSession(jid, { ...session, step: 'ADMIN_SERVICE_MENU' });
+                    await reply(
+                        `🔧 *Service Management*\n\n` +
+                        `1️⃣ View service status\n` +
+                        `2️⃣ Log a completed service\n\n` +
+                        `_Reply with a number or type *back*._`
+                    );
+                } else if (choice === 12) {
                     clearSession(jid);
                     await reply(`👋 Exited Admin Mode.`);
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1–11.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–12.`);
                 }
                 return true;
             }
@@ -541,6 +552,89 @@ async function handleAdminStep(sock, msg, text, jid) {
                     );
                 } catch (err) {
                     await backToMenu(sock, jid, session, reply, `❌ *Failed to update insurance:*\n${err.message}\n\n`);
+                }
+                return true;
+            }
+
+            // --- Service Management ---
+            case 'ADMIN_SERVICE_MENU': {
+                const choice = parseInt(input, 10);
+                if (choice === 1) {
+                    // View all vehicle service status
+                    const allService = await getVehicleServiceStatus();
+                    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+                    let msg = `🔧 *Vehicle Service Status — ${today}*\n\n`;
+                    allService.forEach((v, idx) => {
+                        const name = v.nickname ? `${v.nickname} (${v.registration}) — ${v.make}` : `${v.registration} — ${v.make}`;
+                        const kmSince = Math.round(v.km_since_service).toLocaleString();
+                        let statusLine;
+                        if (v.status === 'OVERDUE') {
+                            const over = Math.round(v.km_since_service - 5000);
+                            statusLine = `   Status: 🔴 OVERDUE by ${over.toLocaleString()} km`;
+                        } else if (v.status === 'DUE_SOON') {
+                            statusLine = `   Status: ⚠️ DUE SOON — ${Math.round(v.km_left).toLocaleString()} km remaining`;
+                        } else {
+                            statusLine = `   Status: ✅ OK — ${Math.round(v.km_left).toLocaleString()} km remaining`;
+                        }
+                        msg += `${idx + 1}. *${name}*\n   Km since service: ${kmSince} km\n${statusLine}\n\n`;
+                    });
+                    // Store the list in session so admin can reply with a number to log a service
+                    setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_SELECT', list: allService });
+                    msg += `_Reply with a vehicle number to log a service, or *back* to return._`;
+                    await reply(msg);
+                } else if (choice === 2) {
+                    // Directly go to log service — fetch list
+                    const vehicles = await getVehicleServiceStatus();
+                    if (vehicles.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `❌ No active vehicles found.\n\n`);
+                        return true;
+                    }
+                    setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_SELECT', list: vehicles });
+                    let msg = `🔧 *Log Completed Service — Select Vehicle*\n\n`;
+                    vehicles.forEach((v, idx) => {
+                        const name = v.nickname ? `${v.make} ${v.nickname}` : `${v.make} ${v.registration}`;
+                        msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} ${name} [${v.registration}]\n`;
+                    });
+                    msg += `\n_Reply with the number of the vehicle, or type *back*._`;
+                    await reply(msg);
+                } else {
+                    await reply(`❌ Invalid choice. Reply with 1 or 2, or type *back*._`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_LOG_SERVICE_SELECT': {
+                const idx = parseInt(input, 10) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= session.list.length) {
+                    await reply(`❌ Invalid choice. Enter a number from the list above, or type *back*._`);
+                    return true;
+                }
+                const selected = session.list[idx];
+                const name = selected.nickname ? `${selected.make} ${selected.nickname}` : `${selected.make} ${selected.registration}`;
+                setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_CONFIRM', selectedVehicle: selected });
+                await reply(
+                    `🔧 *Log Service — ${name}* [${selected.registration}]\n\n` +
+                    `Current km since last service: *${Math.round(selected.km_since_service).toLocaleString()} km*\n\n` +
+                    `Logging a service will *reset the KM counter to 0*.\n` +
+                    `Reply *yes* to confirm or *back* to cancel.`
+                );
+                return true;
+            }
+
+            case 'ADMIN_LOG_SERVICE_CONFIRM': {
+                if (input.toLowerCase() === 'yes' || input.toLowerCase() === 'y') {
+                    const v = session.selectedVehicle;
+                    try {
+                        await logServiceCompleted(v.registration);
+                        const name = v.nickname ? `${v.make} ${v.nickname}` : `${v.make} ${v.registration}`;
+                        await backToMenu(sock, jid, session, reply,
+                            `✅ *Service Logged!*\n*${name}* [${v.registration}]\nKm counter has been reset to 0.\n\n`
+                        );
+                    } catch (err) {
+                        await backToMenu(sock, jid, session, reply, `❌ *Failed to log service:*\n${err.message}\n\n`);
+                    }
+                } else {
+                    await backToMenu(sock, jid, session, reply, `↩️ Service log cancelled.\n\n`);
                 }
                 return true;
             }
