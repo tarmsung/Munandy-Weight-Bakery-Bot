@@ -1,6 +1,7 @@
 const { getAllProducts, addProduct, updateProductRange, deleteProduct } = require('../db/products');
 const { getAllSupervisors, addSupervisor, removeSupervisor } = require('../db/supervisors');
 const { addDriver, deleteDriver, getAllDrivers, addVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
+const { getAllInsuranceStatus, upsertInsurance } = require('../db/insurance');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
@@ -16,7 +17,8 @@ const ADMIN_MENU_TEXT =
     `7️⃣ Delete a Driver\n` +
     `8️⃣ Add a Vehicle\n` +
     `9️⃣ Delete a Vehicle\n` +
-    `🔟 Exit Admin Mode\n\n` +
+    `1️⃣0️⃣ Insurance Management\n` +
+    `1️⃣1️⃣ Exit Admin Mode\n\n` +
     `_Reply with a number. Type *back* at any step to return here._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
@@ -138,10 +140,19 @@ async function handleAdminStep(sock, msg, text, jid) {
                     msg += `\n_Reply with the number of the vehicle to remove, or type *back*._`;
                     await reply(msg);
                 } else if (choice === 10) {
+                    // Insurance Management
+                    setSession(jid, { ...session, step: 'ADMIN_INSURANCE_MENU' });
+                    await reply(
+                        `🛡️ *Insurance Management*\n\n` +
+                        `1️⃣ View Insurance Status\n` +
+                        `2️⃣ Renew Insurance\n\n` +
+                        `_Reply with a number or type *back*._`
+                    );
+                } else if (choice === 11) {
                     clearSession(jid);
                     await reply(`👋 Exited Admin Mode.`);
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1, 2, 3, 4, 5, 6, 7, 8, 9, or 10.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–11.`);
                 }
                 return true;
             }
@@ -436,6 +447,100 @@ async function handleAdminStep(sock, msg, text, jid) {
                     await backToMenu(sock, jid, session, reply, `✅ *Vehicle Deleted!*\nVehicle ${selected.registration} was removed.\n\n`);
                 } catch (err) {
                     await backToMenu(sock, jid, session, reply, `❌ *Failed to delete vehicle:*\n${err.message}\n\n`);
+                }
+                return true;
+            }
+
+            // --- Insurance Management ---
+            case 'ADMIN_INSURANCE_MENU': {
+                const choice = parseInt(input, 10);
+                if (choice === 1) {
+                    // View all vehicle insurance status
+                    const allInsurance = await getAllInsuranceStatus();
+                    const today = new Date().toISOString().split('T')[0];
+                    let msg = `🛡️ *Vehicle Insurance Status*\n\n`;
+                    allInsurance.forEach(v => {
+                        const ins = v.vehicle_insurance && v.vehicle_insurance.length > 0 ? v.vehicle_insurance[0] : null;
+                        const name = `${v.make} ${v.nickname || v.registration}`;
+                        if (!ins) {
+                            msg += `🔴 *${name}* [${v.registration}]\n   _No insurance on record_\n`;
+                        } else {
+                            const dueDate = ins.insurance_due;
+                            const isExpired = dueDate < today;
+                            const emoji = isExpired ? '🔴' : '🟢';
+                            const status = isExpired ? 'EXPIRED' : 'Active';
+                            msg += `${emoji} *${name}* [${v.registration}]\n   Policy: ${ins.policy_number || 'N/A'} | Expires: ${dueDate} (${status})\n`;
+                        }
+                    });
+                    await reply(msg);
+                    await backToMenu(sock, jid, session, reply, `\n`);
+                } else if (choice === 2) {
+                    // Renew insurance – pick a vehicle
+                    const vehicles = await getAllActiveVehicles();
+                    if (vehicles.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `❌ No active vehicles found.\n\n`);
+                        return true;
+                    }
+                    setSession(jid, { ...session, step: 'ADMIN_RENEW_INSURANCE_SELECT', list: vehicles });
+                    let msg = `🛡️ *Renew Insurance — Select Vehicle*\n\n`;
+                    vehicles.forEach((v, idx) => {
+                        const name = v.nickname ? `${v.make} ${v.nickname}` : `${v.make} ${v.model}`;
+                        msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} ${name} [${v.registration}]\n`;
+                    });
+                    msg += `\n_Reply with the number of the vehicle, or type *back*._`;
+                    await reply(msg);
+                } else {
+                    await reply(`❌ Invalid choice. Reply with 1 or 2, or type *back*._`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_RENEW_INSURANCE_SELECT': {
+                const idx = parseInt(input, 10) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= session.list.length) {
+                    await reply(`❌ Invalid choice. Enter a number from the list, or type *back*._`);
+                    return true;
+                }
+                const selected = session.list[idx];
+                setSession(jid, { ...session, step: 'ADMIN_RENEW_INSURANCE_EXPIRY', selectedVehicle: selected });
+                await reply(
+                    `🛡️ *Renew Insurance — ${selected.make} ${selected.nickname || selected.registration}*\n\n` +
+                    `Enter the new *EXPIRY DATE* for the insurance:\n` +
+                    `Format: YYYY-MM-DD (e.g. 2026-12-31)\n\n` +
+                    `_Type *back* to return._`
+                );
+                return true;
+            }
+
+            case 'ADMIN_RENEW_INSURANCE_EXPIRY': {
+                // Validate YYYY-MM-DD
+                const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+                if (!dateRegex.test(input) || isNaN(Date.parse(input))) {
+                    await reply(`❌ Invalid date format. Please use YYYY-MM-DD (e.g. 2026-12-31).\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_RENEW_INSURANCE_POLICY', tempExpiry: input });
+                await reply(
+                    `Expiry Date: *${input}*\n\n` +
+                    `Enter the *POLICY NUMBER* (or type "none" to skip):\n\n` +
+                    `_Type *back* to return._`
+                );
+                return true;
+            }
+
+            case 'ADMIN_RENEW_INSURANCE_POLICY': {
+                const policy = input.toLowerCase() === 'none' ? null : input;
+                const v = session.selectedVehicle;
+                try {
+                    await upsertInsurance(v.registration, session.tempExpiry, policy);
+                    await backToMenu(sock, jid, session, reply,
+                        `✅ *Insurance Updated!*\n` +
+                        `*${v.make} ${v.nickname || v.registration}* [${v.registration}]\n` +
+                        `Expires: ${session.tempExpiry}\n` +
+                        `Policy: ${policy || 'N/A'}\n\n`
+                    );
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to update insurance:*\n${err.message}\n\n`);
                 }
                 return true;
             }
