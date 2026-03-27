@@ -140,7 +140,8 @@ async function runDailyFleetReport(sock) {
  * Initializes the cron job for the daily fleet report.
  */
 function initDailyFleetReportCron(sock) {
-    const reportTime = process.env.REPORT_TIME || '0 18 * * *';
+    // Hardcoded to 4:00 PM (16:00) Harare time
+    const reportTime = '0 16 * * *';
     
     cron.schedule(reportTime, () => {
         runDailyFleetReport(sock);
@@ -148,7 +149,7 @@ function initDailyFleetReportCron(sock) {
         timezone: "Africa/Johannesburg"
     });
 
-    console.log(`⏰ Daily Fleet Report scheduled for ${reportTime} (Africa/Johannesburg)`);
+    console.log(`⏰ Daily Fleet Report hardcoded for ${reportTime} (Africa/Johannesburg)`);
 }
 
 module.exports = { initDailyFleetReportCron, runDailyFleetReport };
