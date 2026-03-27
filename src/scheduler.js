@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { getTodayRecords } = require('./db/records');
 const { getAllSupervisors } = require('./db/supervisors');
-const { generatePDFReport } = require('./reports/reportGenerator');
+const { generateImageReport } = require('./reports/imageGenerator');
 const { generateAIAnalysis } = require('./reports/aiAnalyzer');
 const { getSocket } = require('./state');
 const { initDailyFleetReportCron } = require('./vehicle/dailyReport');
@@ -92,22 +92,20 @@ async function sendEndOfDayReport() {
 
     const aiAnalysis = await generateAIAnalysis(records);
     const summaryText = buildSummaryText(records, dateLabel, aiAnalysis);
-    const pdfBuffer = await generatePDFReport(records, dateLabel, aiAnalysis);
+    const imageBuffer = await generateImageReport(records, dateLabel, aiAnalysis);
 
-    // Archive PDF locally
-    const pdfPath = path.join(REPORTS_DIR, `report_${dateStr}.pdf`);
-    fs.writeFileSync(pdfPath, pdfBuffer);
+    // Archive Image locally
+    const imagePath = path.join(REPORTS_DIR, `report_${dateStr}.png`);
+    fs.writeFileSync(imagePath, imageBuffer);
 
     // Send Master Report to Admins & Supervisors
     for (const num of recipients) {
         const jid = `${num}@s.whatsapp.net`;
-        await sock.sendMessage(jid, { text: summaryText });
-        await sock.sendMessage(jid, {
-            document: pdfBuffer,
-            fileName: `QC_Report_${dateStr}.pdf`,
-            mimetype: 'application/pdf',
+        await sock.sendMessage(jid, { 
+            image: imageBuffer, 
+            caption: summaryText 
         });
-        console.log(`📊 EOD master report sent to ${num}`);
+        console.log(`📊 EOD master report sent as image to ${num}`);
     }
 
     // ── Send Branch-Specific Reports to Groups ────────────────────────────────
@@ -132,15 +130,13 @@ async function sendEndOfDayReport() {
 
         const branchAiAnalysis = await generateAIAnalysis(branchRecords);
         const branchSummaryText = buildSummaryText(branchRecords, dateLabel, branchAiAnalysis);
-        const branchPdfBuffer = await generatePDFReport(branchRecords, dateLabel, branchAiAnalysis);
+        const branchImageBuffer = await generateImageReport(branchRecords, dateLabel, branchAiAnalysis);
 
-        await sock.sendMessage(groupId, { text: branchSummaryText });
-        await sock.sendMessage(groupId, {
-            document: branchPdfBuffer,
-            fileName: `QC_${branch}_Report_${dateStr}.pdf`,
-            mimetype: 'application/pdf',
+        await sock.sendMessage(groupId, { 
+            image: branchImageBuffer, 
+            caption: branchSummaryText 
         });
-        console.log(`📊 EOD branch report sent to ${branch} group.`);
+        console.log(`📊 EOD branch report sent as image to ${branch} group.`);
     }
 }
 
@@ -179,16 +175,14 @@ async function sendBranchReport(branchName, flourKg = null) {
 
     const branchAiAnalysis = await generateAIAnalysis(branchRecords);
     const branchSummaryText = buildSummaryText(branchRecords, dateLabel, branchAiAnalysis, flourKg);
-    const branchPdfBuffer = await generatePDFReport(branchRecords, dateLabel, branchAiAnalysis, flourKg);
+    const branchImageBuffer = await generateImageReport(branchRecords, dateLabel, branchAiAnalysis, flourKg);
 
-    await sock.sendMessage(groupId, { text: branchSummaryText });
-    await sock.sendMessage(groupId, {
-        document: branchPdfBuffer,
-        fileName: `QC_${branchName}_Report_${dateStr}.pdf`,
-        mimetype: 'application/pdf',
+    await sock.sendMessage(groupId, { 
+        image: branchImageBuffer, 
+        caption: branchSummaryText 
     });
 
-    console.log(`📊 Manual branch report sent to ${branchName} group.`);
+    console.log(`📊 Manual branch report sent as image to ${branchName} group.`);
     return true;
 }
 
