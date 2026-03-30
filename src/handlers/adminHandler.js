@@ -9,19 +9,29 @@ const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6
 
 const ADMIN_MENU_TEXT =
     `👑 *Admin Settings Menu*\n\n` +
+    `1️⃣ Production\n` +
+    `2️⃣ Transport\n` +
+    `0️⃣ Exit Admin Mode\n\n` +
+    `_Reply with a number. Type *back* at any step to return here._`;
+
+const ADMIN_PRODUCTION_MENU_TEXT =
+    `🍞 *Production Menu*\n\n` +
     `1️⃣ Add a Supervisor\n` +
     `2️⃣ Remove a Supervisor\n` +
     `3️⃣ Add a new Product\n` +
     `4️⃣ Change accepted weights for a Product\n` +
-    `5️⃣ Delete a Product\n` +
-    `6️⃣ Add a Driver\n` +
-    `7️⃣ Delete a Driver\n` +
-    `8️⃣ Add a Vehicle\n` +
-    `9️⃣ Delete a Vehicle\n` +
-    `1️⃣0️⃣ Insurance Management\n` +
-    `1️⃣1️⃣ Service Management\n` +
-    `1️⃣2️⃣ Exit Admin Mode\n\n` +
-    `_Reply with a number. Type *back* at any step to return here._`;
+    `5️⃣ Delete a Product\n\n` +
+    `_Reply with a number. Type *back* at any step to return to the main menu._`;
+
+const ADMIN_TRANSPORT_MENU_TEXT =
+    `🚚 *Transport Menu*\n\n` +
+    `1️⃣ Add a Driver\n` +
+    `2️⃣ Delete a Driver\n` +
+    `3️⃣ Add a Vehicle\n` +
+    `4️⃣ Delete a Vehicle\n` +
+    `5️⃣ Insurance Management\n` +
+    `6️⃣ Service Management\n\n` +
+    `_Reply with a number. Type *back* at any step to return to the main menu._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
     setSession(jid, { step: 'ADMIN_MENU', senderNumber });
@@ -47,14 +57,43 @@ async function handleAdminStep(sock, msg, text, jid) {
     console.log(`[DEBUG] handleAdminStep: step=${session.step}, input="${input}"`);
 
     // ── Global back / cancel ──────────────────────────────────────────────────
-    if (['back', '0', 'cancel', 'menu'].includes(input.toLowerCase()) && session.step !== 'ADMIN_MENU') {
-        await backToMenu(sock, jid, session, reply, '↩️ Back to menu.\n\n');
+    const lowerInput = input.toLowerCase();
+    const isCancel = ['cancel', 'menu', '0'].includes(lowerInput);
+    const isBack = lowerInput === 'back';
+
+    if ((isCancel || isBack) && session.step !== 'ADMIN_MENU') {
+        if (isCancel || !session.parentMenu || session.step === 'ADMIN_MENU_PRODUCTION' || session.step === 'ADMIN_MENU_TRANSPORT') {
+            await backToMenu(sock, jid, session, reply, '↩️ Back to main menu.\n\n');
+        } else if (session.parentMenu === 'PRODUCTION') {
+            setSession(jid, { ...session, step: 'ADMIN_MENU_PRODUCTION' });
+            await reply(`↩️ Back to Production menu.\n\n${ADMIN_PRODUCTION_MENU_TEXT}`);
+        } else if (session.parentMenu === 'TRANSPORT') {
+            setSession(jid, { ...session, step: 'ADMIN_MENU_TRANSPORT' });
+            await reply(`↩️ Back to Transport menu.\n\n${ADMIN_TRANSPORT_MENU_TEXT}`);
+        }
         return true;
     }
 
     try {
         switch (session.step) {
             case 'ADMIN_MENU': {
+                const choice = parseInt(input, 10);
+                if (choice === 1) {
+                    setSession(jid, { ...session, step: 'ADMIN_MENU_PRODUCTION', parentMenu: 'PRODUCTION' });
+                    await reply(ADMIN_PRODUCTION_MENU_TEXT);
+                } else if (choice === 2) {
+                    setSession(jid, { ...session, step: 'ADMIN_MENU_TRANSPORT', parentMenu: 'TRANSPORT' });
+                    await reply(ADMIN_TRANSPORT_MENU_TEXT);
+                } else if (choice === 0) {
+                    clearSession(jid);
+                    await reply(`👋 Exited Admin Mode.`);
+                } else {
+                    await reply(`❌ Invalid choice. Please reply with 1, 2, or 0.`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_MENU_PRODUCTION': {
                 const choice = parseInt(input, 10);
                 if (choice === 1) {
                     setSession(jid, { ...session, step: 'ADMIN_ADD_SUPERVISOR_BRANCH' });
@@ -102,13 +141,21 @@ async function handleAdminStep(sock, msg, text, jid) {
                     });
                     msg += `\n_Reply with the number of the product to completely delete, or type *back*._\n\n⚠️ *Warning:* This cannot be undone!`;
                     await reply(msg);
-                } else if (choice === 6) {
+                } else {
+                    await reply(`❌ Invalid choice. Please reply with 1–5.`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_MENU_TRANSPORT': {
+                const choice = parseInt(input, 10);
+                if (choice === 1) {
                     setSession(jid, { ...session, step: 'ADMIN_ADD_DRIVER_ID' });
                     await reply(
                         `🚚 *Add New Driver*\n\nWhat is the Driver's ID number? (e.g. "617859")\n\n` +
                         `_Type *back* to return to the menu._`
                     );
-                } else if (choice === 7) {
+                } else if (choice === 2) {
                     const drivers = await getAllDrivers();
                     if (drivers.length === 0) {
                         await backToMenu(sock, jid, session, reply, `❌ No drivers in the system.\n\n`);
@@ -121,13 +168,13 @@ async function handleAdminStep(sock, msg, text, jid) {
                     });
                     msg += `\n_Reply with the number of the driver to remove, or type *back*._`;
                     await reply(msg);
-                } else if (choice === 8) {
+                } else if (choice === 3) {
                     setSession(jid, { ...session, step: 'ADMIN_ADD_VEHICLE_REG' });
                     await reply(
                         `🚐 *Add New Vehicle*\n\nWhat is the vehicle's registration number? (e.g. "AES6291")\n\n` +
                         `_Type *back* to return to the menu._`
                     );
-                } else if (choice === 9) {
+                } else if (choice === 4) {
                     const vehicles = await getAllActiveVehicles();
                     if (vehicles.length === 0) {
                         await backToMenu(sock, jid, session, reply, `❌ No active vehicles in the system.\n\n`);
@@ -141,7 +188,7 @@ async function handleAdminStep(sock, msg, text, jid) {
                     });
                     msg += `\n_Reply with the number of the vehicle to remove, or type *back*._`;
                     await reply(msg);
-                } else if (choice === 10) {
+                } else if (choice === 5) {
                     // Insurance Management
                     setSession(jid, { ...session, step: 'ADMIN_INSURANCE_MENU' });
                     await reply(
@@ -150,7 +197,7 @@ async function handleAdminStep(sock, msg, text, jid) {
                         `2️⃣ Renew Insurance\n\n` +
                         `_Reply with a number or type *back*._`
                     );
-                } else if (choice === 11) {
+                } else if (choice === 6) {
                     // Service Management
                     setSession(jid, { ...session, step: 'ADMIN_SERVICE_MENU' });
                     await reply(
@@ -159,11 +206,8 @@ async function handleAdminStep(sock, msg, text, jid) {
                         `2️⃣ Log a completed service\n\n` +
                         `_Reply with a number or type *back*._`
                     );
-                } else if (choice === 12) {
-                    clearSession(jid);
-                    await reply(`👋 Exited Admin Mode.`);
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1–12.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–6.`);
                 }
                 return true;
             }
