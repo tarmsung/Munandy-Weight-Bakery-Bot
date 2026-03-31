@@ -7,39 +7,36 @@ const { getSocket } = require('../state');
  */
 function buildRouteReportHTML(sessionData) {
     const { driverName, vehicleRoutes, isEdited } = sessionData;
-    const dateStr = new Date().toLocaleString('en-US', { timeZoneName: 'short' });
+    const dateStr = new Date().toLocaleString('en-GB', { 
+        day: '2-digit', month: '2-digit', year: 'numeric', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit' 
+    });
 
     const editBanner = isEdited ? `<div class="edit-banner">⚠️ CORRECTED REPORT</div>` : '';
     
-    let vehicleCardsHtml = '';
-
+    let tableRows = '';
     vehicleRoutes.forEach(entry => {
         const { make, nickname, registration, branch, routes, reported_distance_km } = entry;
         
-        let routesHtml = '';
+        let routesList = '';
         if (routes.length === 0) {
-            routesHtml = '<div class="no-routes">No route reported</div>';
+            routesList = '<span class="no-route">None</span>';
         } else {
-            routes.forEach(r => {
-                const distAttr = r.distance_km != null ? ` (${r.distance_km} km)` : '';
-                routesHtml += `<span class="route-badge">${r.name}${distAttr}</span>`;
-            });
+            routesList = routes.map(r => {
+                const dist = r.distance_km != null ? ` (${r.distance_km}km)` : '';
+                return `<div class="route-item">${r.id}. ${r.name}${dist}</div>`;
+            }).join('');
         }
 
-        vehicleCardsHtml += `
-        <div class="vehicle-card">
-            <div class="vehicle-header">
-                <span class="vehicle-name">${make} ${nickname}</span>
-                <span class="vehicle-reg">${registration} — ${branch}</span>
-            </div>
-            <div class="distance-row">
-                <span class="label">Total Distance:</span>
-                <span class="value">${reported_distance_km} km</span>
-            </div>
-            <div class="routes-container">
-                ${routesHtml}
-            </div>
-        </div>
+        tableRows += `
+        <tr>
+            <td>
+                <strong>${make} ${nickname}</strong><br>
+                <small>${registration} (${branch})</small>
+            </td>
+            <td>${routesList}</td>
+            <td class="dist-cell">${reported_distance_km} km</td>
+        </tr>
         `;
     });
 
@@ -48,153 +45,104 @@ function buildRouteReportHTML(sessionData) {
       <head>
         <style>
           body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 30px;
-            color: #1c1e21;
-            width: 900px;
-          }
-          .report-container {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
             background-color: #fff;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-          }
-          .header {
-            text-align: center;
-            border-bottom: 3px solid #007bff;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-          }
-          .header h1 {
             margin: 0;
-            color: #007bff;
-            font-size: 2.5em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            padding: 20px;
+            width: 850px;
+          }
+          .report-header {
+            border-bottom: 2px solid #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+          }
+          .report-header h1 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
           }
           .edit-banner {
-            background-color: #fff3cd;
+            background: #fff3cd;
             color: #856404;
+            padding: 8px;
+            text-align: center;
+            font-weight: bold;
             border: 1px solid #ffeeba;
-            padding: 10px;
-            text-align: center;
-            font-weight: bold;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 1.2em;
+            border-radius: 4px;
+            margin-bottom: 15px;
           }
-          .meta-info {
+          .meta-bar {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #555;
             display: flex;
             justify-content: space-between;
-            background-color: #f8f9fa;
-            padding: 15px 25px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border-left: 5px solid #007bff;
           }
-          .meta-item .label {
-            font-weight: bold;
-            color: #65676b;
-            font-size: 0.9em;
-            text-transform: uppercase;
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
           }
-          .meta-item .value {
-            font-size: 1.2em;
-            color: #050505;
-            margin-top: 4px;
-            font-weight: 600;
-          }
-          .vehicle-card {
-            background-color: #ffffff;
-            border: 1px solid #e4e6eb;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            overflow: hidden;
-          }
-          .vehicle-header {
-            background-color: #007bff;
+          th {
+            background-color: #2c3e50;
             color: white;
-            padding: 12px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            text-align: left;
+            padding: 12px 10px;
           }
-          .vehicle-name {
-            font-size: 1.3em;
-            font-weight: bold;
+          td {
+            border-bottom: 1px solid #eee;
+            padding: 12px 10px;
+            vertical-align: top;
           }
-          .vehicle-reg {
-            font-size: 0.9em;
-            opacity: 0.9;
+          tr:nth-child(even) { background-color: #f9f9f9; }
+          .route-item {
+            font-size: 13px;
+            margin-bottom: 2px;
           }
-          .distance-row {
-            padding: 15px 20px;
-            border-bottom: 1px dashed #e4e6eb;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          }
-          .distance-row .label {
-            font-weight: bold;
-            color: #65676b;
-          }
-          .distance-row .value {
-            font-size: 1.2em;
-            color: #28a745;
-            font-weight: bold;
-          }
-          .routes-container {
-            padding: 15px 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-          }
-          .route-badge {
-            background-color: #e7f3ff;
-            color: #007bff;
-            padding: 6px 12px;
-            border-radius: 16px;
-            font-size: 0.95em;
-            font-weight: 500;
-            border: 1px solid #cce4ff;
-          }
-          .no-routes {
-            color: #8a8d91;
-            font-style: italic;
-          }
+          .no-route { color: #999; font-style: italic; }
+          .dist-cell { font-weight: bold; color: #27ae60; font-size: 16px; }
           .footer {
-            margin-top: 30px;
+            margin-top: 20px;
             text-align: center;
-            font-size: 0.85em;
-            color: #8a8d91;
+            font-size: 12px;
+            color: #7f8c8d;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
           }
         </style>
       </head>
       <body>
-        <div class="report-container">
-          ${editBanner}
-          <div class="header">
-            <h1>Route Report</h1>
-          </div>
-          
-          <div class="meta-info">
-            <div class="meta-item">
-              <div class="label">Reporter</div>
-              <div class="value">${driverName}</div>
-            </div>
-            <div class="meta-item">
-              <div class="label">Date & Time</div>
-              <div class="value">${dateStr}</div>
-            </div>
-          </div>
+        ${editBanner}
+        <div class="report-header">
+            <h1>Route Summary Report</h1>
+        </div>
+        
+        <div class="meta-bar">
+          <span><strong>Reporter:</strong> ${driverName}</span>
+          <span><strong>Date:</strong> ${dateStr}</span>
+        </div>
 
-          ${vehicleCardsHtml}
+        <table>
+            <thead>
+                <tr>
+                    <th width="35%">Vehicle</th>
+                    <th width="45%">Routes Taken</th>
+                    <th width="20%">Distance</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tableRows}
+            </tbody>
+        </table>
 
-          <div class="footer">
-            Munandy Vehicle Management System
-          </div>
+        <div class="footer">
+            Munandy Vehicle Management System • Auto-generated
         </div>
       </body>
     </html>
@@ -214,13 +162,13 @@ async function sendRouteReportToGroup(sock, sessionData) {
     const htmlContent = buildRouteReportHTML(sessionData);
 
     try {
-        console.log('[DEBUG] Generating route report image with sandbox flags...');
+        console.log('[DEBUG] Generating route report (Table View)...');
         const imageBuffer = await nodeHtmlToImage({
             html: htmlContent,
             quality: 100,
             type: 'jpeg',
             puppeteerArgs: {
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
             }
         });
 
@@ -234,7 +182,7 @@ async function sendRouteReportToGroup(sock, sessionData) {
         console.error('Failed to send route report image to group:', err);
         
         // Fallback to text if image fails
-        const fallbackText = `🗺️ Route Report\nReporter: ${sessionData.driverName}\nDate: ${new Date().toLocaleString()}\n(Image generation/sending failed: ${err.message})`;
+        const fallbackText = `🗺️ Route Report\nReporter: ${sessionData.driverName}\nDate: ${new Date().toLocaleString()}\n(Image generation failed: ${err.message})`;
         try {
             await getSocket().sendMessage(notifyJid, { text: fallbackText });
         } catch (e) { console.error('Secondary error:', e.message); }
