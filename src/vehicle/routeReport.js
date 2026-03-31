@@ -220,7 +220,7 @@ async function sendRouteReportToGroup(sock, sessionData) {
             quality: 100,
             type: 'jpeg',
             puppeteerArgs: {
-                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote']
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
             }
         });
 

@@ -141,7 +141,7 @@ async function sendServiceAlertImage(sock, alertVehicles) {
             html,
             quality: 100,
             type: 'jpeg',
-            puppeteerArgs: { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] }
+            puppeteerArgs: { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] }
         });
 
         await getSocket().sendMessage(notifyJid, {
