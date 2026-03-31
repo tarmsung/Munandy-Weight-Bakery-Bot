@@ -10,6 +10,8 @@ function buildRouteReportHTML(sessionData) {
 
     const editBanner = isEdited ? `<div class="edit-banner">⚠️ CORRECTED REPORT</div>` : '';
     
+    let vehicleCardsHtml = '';
+
     vehicleRoutes.forEach(entry => {
         const { make, nickname, registration, branch, routes, reported_distance_km } = entry;
         
