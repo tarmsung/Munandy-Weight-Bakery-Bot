@@ -1,5 +1,6 @@
 require('dotenv').config();
 const nodeHtmlToImage = require('node-html-to-image');
+const { getSocket } = require('../state');
 
 /**
  * Builds the HTML template for the Route Report.
@@ -219,12 +220,12 @@ async function sendRouteReportToGroup(sock, sessionData) {
             quality: 100,
             type: 'jpeg',
             puppeteerArgs: {
-                args: ['--no-sandbox', '--disable-setuid-sandbox']
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote']
             }
         });
 
         console.log('Sending route report image to group...');
-        await sock.sendMessage(notifyJid, { 
+        await getSocket().sendMessage(notifyJid, { 
             image: imageBuffer,
             caption: `🗺️ Route Report submitted by ${sessionData.driverName}`
         });
@@ -233,8 +234,10 @@ async function sendRouteReportToGroup(sock, sessionData) {
         console.error('Failed to send route report image to group:', err);
         
         // Fallback to text if image fails
-        const fallbackText = `🗺️ Route Report\nReporter: ${sessionData.driverName}\nDate: ${new Date().toLocaleString()}\n(Image generation failed)`;
-        await sock.sendMessage(notifyJid, { text: fallbackText });
+        const fallbackText = `🗺️ Route Report\nReporter: ${sessionData.driverName}\nDate: ${new Date().toLocaleString()}\n(Image generation/sending failed: ${err.message})`;
+        try {
+            await getSocket().sendMessage(notifyJid, { text: fallbackText });
+        } catch (e) { console.error('Secondary error:', e.message); }
     }
 }
 

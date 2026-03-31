@@ -1,5 +1,6 @@
 const nodeHtmlToImage = require('node-html-to-image');
 const { SERVICE_INTERVAL_KM } = require('../db/service');
+const { getSocket } = require('../state');
 
 /**
  * Builds the HTML for the service alert image.
@@ -140,16 +141,16 @@ async function sendServiceAlertImage(sock, alertVehicles) {
             html,
             quality: 100,
             type: 'jpeg',
-            puppeteerArgs: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+            puppeteerArgs: { args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--single-process', '--no-zygote'] }
         });
 
-        await sock.sendMessage(notifyJid, {
+        await getSocket().sendMessage(notifyJid, {
             image: imageBuffer,
             caption: `🔧 Service Due Alert — ${alertVehicles.length} vehicle(s) require attention.`
         });
         console.log('[Service Alert] ✅ Alert image sent to group.');
     } catch (err) {
-        console.error('[Service Alert] ❌ Image generation failed, sending text fallback:', err.message);
+        console.error('[Service Alert] ❌ Image generation/sending failed, sending text fallback:', err.message);
         // Text fallback
         let fallback = `🔧 *Service Due Alert — ${dateLabel}*\n\n`;
         alertVehicles.forEach(v => {
@@ -164,7 +165,9 @@ async function sendServiceAlertImage(sock, alertVehicles) {
                 fallback += `   Status: DUE SOON — ${SERVICE_INTERVAL_KM - km} km remaining\n\n`;
             }
         });
-        await sock.sendMessage(notifyJid, { text: fallback });
+        try {
+            await getSocket().sendMessage(notifyJid, { text: fallback });
+        } catch (e) { console.error('Secondary error:', e.message); }
     }
 }
 

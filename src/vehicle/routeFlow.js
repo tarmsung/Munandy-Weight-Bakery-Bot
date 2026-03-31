@@ -370,10 +370,9 @@ async function finalizeRouteReport(sock, jid, session) {
             try {
                 const alertVehicles = await processTripKm(session.vehicleRoutes);
                 if (alertVehicles.length > 0) {
-                    // Fire-and-forget: don't wait for image send to complete
-                    sendServiceAlertImage(sock, alertVehicles).catch(e =>
-                        console.error('[Service Alert] Error sending image:', e.message)
-                    );
+                    // Await it so we don't start two Puppeteer instances at the same time
+                    // which would choke the VPS and drop the Baileys connection.
+                    await sendServiceAlertImage(sock, alertVehicles);
                 }
             } catch (svcErr) {
                 console.error('[Service Alert] Failed to process trip km:', svcErr.message);
