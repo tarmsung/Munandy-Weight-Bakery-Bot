@@ -1,6 +1,6 @@
 const { getAllProducts, addProduct, updateProductRange, deleteProduct } = require('../db/products');
 const { getAllSupervisors, addSupervisor, removeSupervisor } = require('../db/supervisors');
-const { addDriver, updateDriver, deleteDriver, getAllDrivers, addVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
+const { addDriver, updateDriver, deleteDriver, getAllDrivers, addVehicle, updateVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
 const { getAllInsuranceStatus, upsertInsurance } = require('../db/insurance');
 const { getVehicleServiceStatus, logServiceCompleted } = require('../db/service');
 const { getAllRoutes, addRoute, updateRoute } = require('../db/routes');
@@ -33,7 +33,8 @@ const ADMIN_TRANSPORT_MENU_TEXT =
     `5️⃣ Insurance Management\n` +
     `6️⃣ Service Management\n` +
     `7️⃣ Edit Route\n` +
-    `8️⃣ Edit Driver\n\n` +
+    `8️⃣ Edit Driver\n` +
+    `9️⃣ Edit Vehicle\n\n` +
     `_Reply with a number. Type *back* at any step to return to the main menu._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
@@ -225,8 +226,22 @@ async function handleAdminStep(sock, msg, text, jid) {
                         `2️⃣ Edit driver ID\n\n` +
                         `_Reply with a number or type *back*._`
                     );
+                } else if (choice === 9) {
+                    const vehicles = await getAllActiveVehicles();
+                    if (vehicles.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `❌ No active vehicles in the system.\n\n`);
+                        return true;
+                    }
+                    setSession(jid, { ...session, step: 'ADMIN_EDIT_VEHICLE_SELECT', list: vehicles });
+                    let msg = `🚐 *Edit Vehicle - Select Vehicle*\n\n`;
+                    vehicles.forEach((v, idx) => {
+                        const name = v.nickname ? `${v.make} ${v.model} (${v.nickname})` : `${v.make} ${v.model}`;
+                        msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} ${name} [${v.registration}] - ${v.branch}\n`;
+                    });
+                    msg += `\n_Reply with the number of the vehicle to edit, or type *back*._`;
+                    await reply(msg);
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1–8.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–9.`);
                 }
                 return true;
             }
@@ -917,6 +932,46 @@ async function handleAdminStep(sock, msg, text, jid) {
                     await backToMenu(sock, jid, session, reply, `✅ *Driver Updated!*\n${session.targetDriver.name}'s ID changed from ${session.targetDriver.id} to ${newId}.\n\n`);
                 } catch (err) {
                     await backToMenu(sock, jid, session, reply, `❌ *Failed to update driver ID:*\n${err.message}\n\n`);
+                }
+                return true;
+            }
+
+            // --- Edit Vehicle Management ---
+            case 'ADMIN_EDIT_VEHICLE_SELECT': {
+                const idx = parseInt(input, 10) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= session.list.length) {
+                    await reply(`❌ Invalid choice. Enter a number from the list, or type *back*._`);
+                    return true;
+                }
+                const selected = session.list[idx];
+                setSession(jid, { ...session, step: 'ADMIN_EDIT_VEHICLE_BRANCH_NEW', targetVehicle: selected });
+                await reply(
+                    `Editing Vehicle: *${selected.make} ${selected.model}* [${selected.registration}]\n` +
+                    `Current Branch: ${selected.branch}\n\n` +
+                    `Select the *New Branch*:\n` +
+                    `1️⃣ Harare\n` +
+                    `2️⃣ Mutare\n` +
+                    `3️⃣ Bulawayo\n\n` +
+                    `_Reply with a number or type *back*._`
+                );
+                return true;
+            }
+            case 'ADMIN_EDIT_VEHICLE_BRANCH_NEW': {
+                const branches = { 1: 'Harare', 2: 'Mutare', 3: 'Bulawayo' };
+                const choice = parseInt(input, 10);
+                const branch = branches[choice];
+                if (!branch) {
+                    await reply(`❌ Invalid choice. Reply with 1, 2, or 3.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                try {
+                    await updateVehicle(session.targetVehicle.registration, { branch: branch });
+                    const name = session.targetVehicle.nickname 
+                        ? `${session.targetVehicle.make} ${session.targetVehicle.nickname}` 
+                        : `${session.targetVehicle.make} ${session.targetVehicle.registration}`;
+                    await backToMenu(sock, jid, session, reply, `✅ *Vehicle Updated!*\n${name}'s branch changed from ${session.targetVehicle.branch} to ${branch}.\n\n`);
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to update vehicle:*\n${err.message}\n\n`);
                 }
                 return true;
             }

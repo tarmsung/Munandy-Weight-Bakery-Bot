@@ -228,6 +228,26 @@ async function addVehicle({ registration, make, model, nickname, branch }) {
     }
 }
 
+async function updateVehicle(registration, updates) {
+    try {
+        const { data, error } = await supabase
+            .from('vehicles')
+            .update(updates)
+            .eq('registration', registration)
+            .select()
+            .single();
+
+        if (error) {
+             if (error.code === '23505') throw new Error('Vehicle registration already exists');
+             throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error(`Error updating vehicle ${registration}:`, err);
+        throw err;
+    }
+}
+
 async function deleteVehicle(registration) {
     try {
         const { error } = await supabase
@@ -255,5 +275,6 @@ module.exports = {
     deleteDriver,
     getAllDrivers,
     addVehicle,
+    updateVehicle,
     deleteVehicle
 };
