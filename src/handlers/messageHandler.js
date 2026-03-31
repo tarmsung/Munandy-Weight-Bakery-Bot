@@ -65,16 +65,30 @@ async function handleMessage(sock, msg) {
         }
     }
 
+    const cmdRaw = text.toLowerCase();
+    const isPublicCmd = ['van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmdRaw);
+    
+    let inAllowedSession = false;
+    if (hasSession(jid)) {
+        const sess = getSession(jid);
+        if (sess.flowType === 'van' || sess.flowType === 'route' || sess.flow === 'route' || sess.flow === 'van' || sess.flowType === 'edit' || sess.flow === 'edit') inAllowedSession = true;
+    }
+    
+    const restrictedCmds = ['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'menu', 'delete', '/delete', '!delete'];
+    const isRestrictedCmd = restrictedCmds.includes(cmdRaw);
+
     if (!isAuthorized) {
-        // Send a rejection message to strangers, but ONLY in private chat (not groups)
-        if (!jid.endsWith('@g.us')) {
-            await sock.sendMessage(jid, { text: `🚫 You are not authorised to use this ChatBot.` });
-            console.log(`[AUTH FAILED] Replied to unauthorized number: ${senderNumber}`);
-        } else {
-            console.log(`[AUTH IGNORED] Unauthorized user ${senderNumber} messaged in group ${jid}`);
+        if (isRestrictedCmd || (!isPublicCmd && !inAllowedSession)) {
+            // Send a rejection message to strangers, but ONLY in private chat (not groups)
+            if (!jid.endsWith('@g.us')) {
+                await sock.sendMessage(jid, { text: `🚫 You are not authorised to use this ChatBot.` });
+                console.log(`[AUTH FAILED] Replied to unauthorized number: ${senderNumber}`);
+            } else {
+                console.log(`[AUTH IGNORED] Unauthorized user ${senderNumber} messaged in group ${jid}`);
+            }
+            console.log('[DEBUG RAW MSG]', JSON.stringify(msg, null, 2));
+            return;
         }
-        console.log('[DEBUG RAW MSG]', JSON.stringify(msg, null, 2));
-        return;
     }
 
     const cmd = text.toLowerCase();
