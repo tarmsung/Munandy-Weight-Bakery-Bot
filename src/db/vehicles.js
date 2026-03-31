@@ -159,6 +159,26 @@ async function addDriver(id, name, branch) {
     }
 }
 
+async function updateDriver(id, updates) {
+    try {
+        const { data, error } = await supabase
+            .from('drivers')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+             if (error.code === '23505') throw new Error('Driver ID already exists');
+             throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error(`Error updating driver ${id}:`, err);
+        throw err;
+    }
+}
+
 async function deleteDriver(id) {
     try {
         const { error } = await supabase
@@ -231,6 +251,7 @@ module.exports = {
     getReportById,
     updateReport,
     addDriver,
+    updateDriver,
     deleteDriver,
     getAllDrivers,
     addVehicle,

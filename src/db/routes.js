@@ -73,9 +73,50 @@ async function saveRouteReport(driverId, vehicleRoutes, reporterJid) {
     }
 }
 
+async function addRoute(id, name, branch, distance_km) {
+    try {
+        const { data, error } = await supabase
+            .from('routes')
+            .insert([{ id, name, branch, distance_km }])
+            .select()
+            .single();
+
+        if (error) {
+            if (error.code === '23505') throw new Error('Route ID already exists');
+            throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error in addRoute:', err);
+        throw err;
+    }
+}
+
+async function updateRoute(id, updates) {
+    try {
+        const { data, error } = await supabase
+            .from('routes')
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+             if (error.code === '23505') throw new Error('Route ID already exists');
+             throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error(`Error updating route ${id}:`, err);
+        throw err;
+    }
+}
+
 module.exports = {
     getRouteReporter,
     getDriverById,
     getAllRoutes,
-    saveRouteReport
+    saveRouteReport,
+    addRoute,
+    updateRoute
 };

@@ -1,8 +1,9 @@
 const { getAllProducts, addProduct, updateProductRange, deleteProduct } = require('../db/products');
 const { getAllSupervisors, addSupervisor, removeSupervisor } = require('../db/supervisors');
-const { addDriver, deleteDriver, getAllDrivers, addVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
+const { addDriver, updateDriver, deleteDriver, getAllDrivers, addVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
 const { getAllInsuranceStatus, upsertInsurance } = require('../db/insurance');
 const { getVehicleServiceStatus, logServiceCompleted } = require('../db/service');
+const { getAllRoutes, addRoute, updateRoute } = require('../db/routes');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
@@ -30,7 +31,9 @@ const ADMIN_TRANSPORT_MENU_TEXT =
     `3️⃣ Add a Vehicle\n` +
     `4️⃣ Delete a Vehicle\n` +
     `5️⃣ Insurance Management\n` +
-    `6️⃣ Service Management\n\n` +
+    `6️⃣ Service Management\n` +
+    `7️⃣ Edit Route\n` +
+    `8️⃣ Edit Driver\n\n` +
     `_Reply with a number. Type *back* at any step to return to the main menu._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
@@ -206,8 +209,24 @@ async function handleAdminStep(sock, msg, text, jid) {
                         `2️⃣ Log a completed service\n\n` +
                         `_Reply with a number or type *back*._`
                     );
+                } else if (choice === 7) {
+                    setSession(jid, { ...session, step: 'ADMIN_EDIT_ROUTE_MENU' });
+                    await reply(
+                        `🛣️ *Edit Route*\n\n` +
+                        `1️⃣ Edit existing route\n` +
+                        `2️⃣ Add new route\n\n` +
+                        `_Reply with a number or type *back*._`
+                    );
+                } else if (choice === 8) {
+                    setSession(jid, { ...session, step: 'ADMIN_EDIT_DRIVER_MENU' });
+                    await reply(
+                        `👨‍✈️ *Edit Driver*\n\n` +
+                        `1️⃣ Edit driver branch\n` +
+                        `2️⃣ Edit driver ID\n\n` +
+                        `_Reply with a number or type *back*._`
+                    );
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1–6.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–8.`);
                 }
                 return true;
             }
@@ -679,6 +698,225 @@ async function handleAdminStep(sock, msg, text, jid) {
                     }
                 } else {
                     await backToMenu(sock, jid, session, reply, `↩️ Service log cancelled.\n\n`);
+                }
+                return true;
+            }
+
+            // --- Edit Route Management ---
+            case 'ADMIN_EDIT_ROUTE_MENU': {
+                const choice = parseInt(input, 10);
+                if (choice === 1) {
+                    setSession(jid, { ...session, step: 'ADMIN_EDIT_ROUTE_EXISTING_ID' });
+                    await reply(`🛣️ *Edit Existing Route*\n\nEnter the Route ID you want to edit: (e.g. 54)\n\n_Type *back* to return._`);
+                } else if (choice === 2) {
+                    setSession(jid, { ...session, step: 'ADMIN_ADD_ROUTE_ID' });
+                    await reply(`🛣️ *Add New Route*\n\nEnter the new Route ID: (e.g. 55)\n\n_Type *back* to return._`);
+                } else {
+                    await reply(`❌ Invalid choice. Reply with 1 or 2, or type *back*._`);
+                }
+                return true;
+            }
+
+            // ... Existing route edit
+            case 'ADMIN_EDIT_ROUTE_EXISTING_ID': {
+                const routeId = parseInt(input, 10);
+                if (isNaN(routeId)) {
+                    await reply(`❌ Invalid Route ID. Please enter a valid number.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                const allRoutes = await getAllRoutes();
+                const route = allRoutes.find(r => r.id === routeId || parseInt(r.id, 10) === routeId);
+                if (!route) {
+                    await reply(`❌ Route ID *${routeId}* not found.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_EDIT_ROUTE_NAME', targetRoute: route });
+                await reply(
+                    `Editing Route: *${route.name}* (ID: ${route.id})\nCurrent Distance: ${route.distance_km || 'None'} km\n\n` +
+                    `Enter the new *Route Name* (or type *keep* to leave as is):\n\n_Type *back* to return._`
+                );
+                return true;
+            }
+            case 'ADMIN_EDIT_ROUTE_NAME': {
+                if (input.toLowerCase() !== 'keep') {
+                    session.targetRoute.newName = input;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_EDIT_ROUTE_KM' });
+                await reply(
+                    `*Route Name setup.* (or kept)\n\n` +
+                    `Enter the new *Distance in km* (or type *keep* to leave as is):\n\n_Type *back* to return._`
+                );
+                return true;
+            }
+            case 'ADMIN_EDIT_ROUTE_KM': {
+                const updates = {};
+                if (session.targetRoute.newName) updates.name = session.targetRoute.newName;
+
+                if (input.toLowerCase() !== 'keep') {
+                    const km = parseFloat(input);
+                    if (isNaN(km) || km < 0) {
+                        await reply(`❌ Invalid distance. Please enter a valid number or type *keep*.\n\n_Type *back* to return._`);
+                        return true;
+                    }
+                    updates.distance_km = km;
+                }
+
+                if (Object.keys(updates).length === 0) {
+                    await backToMenu(sock, jid, session, reply, `ℹ️ No changes were made to Route *${session.targetRoute.id}*.\n\n`);
+                    return true;
+                }
+
+                try {
+                    await updateRoute(session.targetRoute.id, updates);
+                    await backToMenu(sock, jid, session, reply, `✅ *Route Updated Successfully!*\nID: ${session.targetRoute.id}\nChanges applied successfully.\n\n`);
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to update route:*\n${err.message}\n\n`);
+                }
+                return true;
+            }
+
+            // ... Add new route
+            case 'ADMIN_ADD_ROUTE_ID': {
+                const routeId = parseInt(input, 10);
+                if (isNaN(routeId)) {
+                    await reply(`❌ Invalid Route ID. Please enter a valid number.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_ADD_ROUTE_NAME', tempRouteId: routeId });
+                await reply(`Adding Route ID: *${routeId}*\n\nEnter the new *Route Name*:\n\n_Type *back* to return._`);
+                return true;
+            }
+            case 'ADMIN_ADD_ROUTE_NAME': {
+                setSession(jid, { ...session, step: 'ADMIN_ADD_ROUTE_BRANCH', tempRouteName: input });
+                await reply(
+                    `Route Name: *${input}*\n\n` +
+                    `Select the *Branch* for this route:\n` +
+                    `1️⃣ Harare\n` +
+                    `2️⃣ Mutare\n` +
+                    `3️⃣ Bulawayo\n\n` +
+                    `_Reply with a number or type *back*._`
+                );
+                return true;
+            }
+            case 'ADMIN_ADD_ROUTE_BRANCH': {
+                const branches = { 1: 'Harare', 2: 'Mutare', 3: 'Bulawayo' };
+                const choice = parseInt(input, 10);
+                const branch = branches[choice];
+                if (!branch) {
+                    await reply(`❌ Invalid choice. Reply with 1, 2, or 3.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_ADD_ROUTE_KM', tempRouteBranch: branch });
+                await reply(
+                    `Branch: *${branch}*\n\n` +
+                    `Enter the *Distance in km* (e.g. 150):\n\n_Type *back* to return._`
+                );
+                return true;
+            }
+            case 'ADMIN_ADD_ROUTE_KM': {
+                const km = parseFloat(input);
+                if (isNaN(km) || km < 0) {
+                    await reply(`❌ Invalid distance. Please enter a valid number.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                try {
+                    await addRoute(session.tempRouteId, session.tempRouteName, session.tempRouteBranch, km);
+                    await backToMenu(sock, jid, session, reply,
+                        `✅ *New Route Added!*\nID: ${session.tempRouteId}\nName: ${session.tempRouteName}\nBranch: ${session.tempRouteBranch}\nDistance: ${km} km\n\n`
+                    );
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to add route:*\n${err.message}\n\n`);
+                }
+                return true;
+            }
+
+            // --- Edit Driver Management ---
+            case 'ADMIN_EDIT_DRIVER_MENU': {
+                const choice = parseInt(input, 10);
+                if (choice === 1 || choice === 2) {
+                    const drivers = await getAllDrivers();
+                    if (drivers.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `❌ No drivers in the system.\n\n`);
+                        return true;
+                    }
+                    setSession(jid, { ...session, step: choice === 1 ? 'ADMIN_EDIT_DRIVER_BRANCH_SELECT' : 'ADMIN_EDIT_DRIVER_ID_SELECT', list: drivers });
+                    const titleText = choice === 1 ? "Edit Driver Branch" : "Edit Driver ID";
+                    let msg = `👨‍✈️ *${titleText} - Select Driver*\n\n`;
+                    drivers.forEach((d, idx) => {
+                        msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} ${d.name} (${d.id}) - ${d.branch}\n`;
+                    });
+                    msg += `\n_Reply with the number of the driver, or type *back*._`;
+                    await reply(msg);
+                } else {
+                    await reply(`❌ Invalid choice. Reply with 1 or 2, or type *back*._`);
+                }
+                return true;
+            }
+
+            // ... Edit driver branch
+            case 'ADMIN_EDIT_DRIVER_BRANCH_SELECT': {
+                const idx = parseInt(input, 10) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= session.list.length) {
+                    await reply(`❌ Invalid choice. Enter a number from the list, or type *back*._`);
+                    return true;
+                }
+                const selected = session.list[idx];
+                setSession(jid, { ...session, step: 'ADMIN_EDIT_DRIVER_BRANCH_NEW', targetDriver: selected });
+                await reply(
+                    `Editing Driver: *${selected.name}* (${selected.id})\n` +
+                    `Current Branch: ${selected.branch}\n\n` +
+                    `Select the *New Branch*:\n` +
+                    `1️⃣ Harare\n` +
+                    `2️⃣ Mutare\n` +
+                    `3️⃣ Bulawayo\n\n` +
+                    `_Reply with a number or type *back*._`
+                );
+                return true;
+            }
+            case 'ADMIN_EDIT_DRIVER_BRANCH_NEW': {
+                const branches = { 1: 'Harare', 2: 'Mutare', 3: 'Bulawayo' };
+                const choice = parseInt(input, 10);
+                const branch = branches[choice];
+                if (!branch) {
+                    await reply(`❌ Invalid choice. Reply with 1, 2, or 3.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                try {
+                    await updateDriver(session.targetDriver.id, { branch: branch });
+                    await backToMenu(sock, jid, session, reply, `✅ *Driver Updated!*\n${session.targetDriver.name}'s branch changed to ${branch}.\n\n`);
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to update driver:*\n${err.message}\n\n`);
+                }
+                return true;
+            }
+
+            // ... Edit driver ID
+            case 'ADMIN_EDIT_DRIVER_ID_SELECT': {
+                const idx = parseInt(input, 10) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= session.list.length) {
+                    await reply(`❌ Invalid choice. Enter a number from the list, or type *back*._`);
+                    return true;
+                }
+                const selected = session.list[idx];
+                setSession(jid, { ...session, step: 'ADMIN_EDIT_DRIVER_ID_NEW', targetDriver: selected });
+                await reply(
+                    `Editing Driver: *${selected.name}*\n` +
+                    `Current ID: ${selected.id}\n\n` +
+                    `Enter the *New Driver ID*:\n\n_Type *back* to return._`
+                );
+                return true;
+            }
+            case 'ADMIN_EDIT_DRIVER_ID_NEW': {
+                const newId = input.trim();
+                if (!newId || newId.length < 2) {
+                    await reply(`❌ Invalid driver ID. Please enter a valid ID.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                try {
+                    await updateDriver(session.targetDriver.id, { id: newId });
+                    await backToMenu(sock, jid, session, reply, `✅ *Driver Updated!*\n${session.targetDriver.name}'s ID changed from ${session.targetDriver.id} to ${newId}.\n\n`);
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to update driver ID:*\n${err.message}\n\n`);
                 }
                 return true;
             }
