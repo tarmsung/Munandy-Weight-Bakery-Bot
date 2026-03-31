@@ -36,7 +36,7 @@ async function getAllRoutes() {
     try {
         const { data, error } = await supabase
             .from('routes')
-            .select('id, name, branch')
+            .select('id, name, branch, distance_km')
             .order('branch', { ascending: true })
             .order('id', { ascending: true });
 
