@@ -94,7 +94,7 @@ async function handleMessage(sock, msg) {
     const cmd = text.toLowerCase();
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
-    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'hi', 'hello', 'admin', 'menu', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
+    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
         if (hasSession(jid)) clearSession(jid); // Force exit current session if typing a command
     } else {
         // ── Active session: route non-command input to the active state machine
@@ -138,7 +138,7 @@ async function handleMessage(sock, msg) {
     // ── Commands ───────────────────────────────────────────────────────────────
     // ── Admin Command ──────────────────────────────────────────────────────────
     if (adminNums.includes(senderNumber)) {
-        if (['hi', 'hello', 'admin', 'menu'].includes(cmd)) {
+        if (cmd === 'admin') {
             await startAdminMenu(sock, jid, senderNumber);
             return;
         }
