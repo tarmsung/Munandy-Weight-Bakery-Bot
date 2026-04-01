@@ -74,19 +74,22 @@ async function handleMessage(sock, msg) {
         if (sess.flowType === 'van' || sess.flowType === 'route' || sess.flow === 'route' || sess.flow === 'van' || sess.flowType === 'edit' || sess.flow === 'edit') inAllowedSession = true;
     }
     
-    const restrictedCmds = ['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'menu', 'delete', '/delete', '!delete'];
+    const restrictedCmds = ['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete'];
     const isRestrictedCmd = restrictedCmds.includes(cmdRaw);
 
     if (!isAuthorized) {
-        if (isRestrictedCmd || (!isPublicCmd && !inAllowedSession)) {
-            // Send a rejection message to strangers, but ONLY in private chat (not groups)
+        if (isRestrictedCmd) {
+            // Only reply with the "rejection" if they specifically try a restricted command
             if (!jid.endsWith('@g.us')) {
                 await sock.sendMessage(jid, { text: `🚫 You are not authorised to use this ChatBot.` });
-                console.log(`[AUTH FAILED] Replied to unauthorized number: ${senderNumber}`);
-            } else {
-                console.log(`[AUTH IGNORED] Unauthorized user ${senderNumber} messaged in group ${jid}`);
+                console.log(`[AUTH FAILED] Replied to restricted command from: ${senderNumber}`);
             }
-            console.log('[DEBUG RAW MSG]', JSON.stringify(msg, null, 2));
+            return;
+        }
+        
+        if (!isPublicCmd && !inAllowedSession) {
+            // SILENT REJECTION for unknown input or greetings (making the bot appear dead to strangers)
+            console.log(`[AUTH SILENT] Ignored unknown message from unauthorized user: ${senderNumber}`);
             return;
         }
     }
@@ -94,7 +97,7 @@ async function handleMessage(sock, msg) {
     const cmd = text.toLowerCase();
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
-    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'help', '!help', '/help', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
+    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
         if (hasSession(jid)) clearSession(jid); // Force exit current session if typing a command
     } else {
         // ── Active session: route non-command input to the active state machine
@@ -185,22 +188,6 @@ async function handleMessage(sock, msg) {
     if (['ping', '!ping'].includes(cmd)) {
         await sock.sendMessage(jid, { text: '🏓 Pong!' }, { quoted: msg });
         return;
-    }
-
-    if (['help', '!help', '/help', 'hi', 'hello'].includes(cmd)) {
-        await sock.sendMessage(
-            jid,
-            {
-                text:
-                    `*🤖 Munandy Weight Bot Commands:*\n\n` +
-                    `*/weigh*  — Start a new weighing session\n` +
-                    `*/delete* — Delete today's records\n` +
-                    `*/today*  — View today's production summary\n` +
-                    `*!ping*   — Check if bot is alive\n` +
-                    `*!help*   — Show this help message`,
-            },
-            { quoted: msg }
-        );
     }
 }
 
