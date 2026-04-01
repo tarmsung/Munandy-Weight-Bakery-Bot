@@ -149,20 +149,17 @@ async function handleRouteMessage(sock, senderJid, text, session) {
             break;
         }
 
-        // -------------------------------------------------------
-        // STEP 3: Confirm driver identity
-        // -------------------------------------------------------
         case 'ROUTE_AWAIT_CONFIRM':
             if (textLower === 'yes' || textLower === 'y') {
                 // Proceed to briefing
                 await sendBriefing(sock, senderJid);
                 sessionManager.updateSession(senderJid, { step: 'ROUTE_AWAIT_READY' });
-            } else if (textLower === 'no' || textLower === 'n' || textLower === 'cancel') {
+            } else if (textLower === 'no' || textLower === 'n') {
                 await sock.sendMessage(senderJid, { text: 'Session cancelled.' });
                 sessionManager.clearSession(senderJid);
             } else {
                 await sock.sendMessage(senderJid, {
-                    text: 'Please reply *yes* to confirm or *no* to cancel.'
+                    text: 'Please reply *yes* to confirm or *no* to return to the start.'
                 });
             }
             break;
@@ -189,9 +186,6 @@ async function handleRouteMessage(sock, senderJid, text, session) {
                 // Ask first vehicle — retrieve updated session
                 const updatedSession = sessionManager.getSession(senderJid);
                 await askCurrentVehicle(sock, senderJid, updatedSession);
-            } else if (textLower === 'cancel') {
-                await sock.sendMessage(senderJid, { text: 'Session ended.' });
-                sessionManager.clearSession(senderJid);
             } else {
                 await sock.sendMessage(senderJid, {
                     text: 'Please reply *yes* to continue or *cancel* to cancel the session.'
@@ -203,12 +197,6 @@ async function handleRouteMessage(sock, senderJid, text, session) {
         // STEP 5: Route entry loop
         // -------------------------------------------------------
         case 'ROUTE_AWAIT_ROUTE': {
-            if (textLower === 'cancel') {
-                await sock.sendMessage(senderJid, { text: 'Session ended.' });
-                sessionManager.clearSession(senderJid);
-                break;
-            }
-
             const vehicle = session.vehicles[session.currentVehicleIndex];
 
             if (textLower === '0') {
@@ -288,12 +276,6 @@ async function handleRouteMessage(sock, senderJid, text, session) {
         // STEP 6: Confirm or override seeded distance
         // -------------------------------------------------------
         case 'ROUTE_AWAIT_DISTANCE_CONFIRM': {
-            if (textLower === 'cancel') {
-                await sock.sendMessage(senderJid, { text: 'Session ended.' });
-                sessionManager.clearSession(senderJid);
-                break;
-            }
-
             if (textLower === 'keep' || textLower === 'k') {
                 // Use the seeded distance as-is
                 const vehicle = session.vehicles[session.currentVehicleIndex];
@@ -340,12 +322,6 @@ async function handleRouteMessage(sock, senderJid, text, session) {
         // STEP 7: Manual distance entry
         // -------------------------------------------------------
         case 'ROUTE_AWAIT_DISTANCE': {
-            if (textLower === 'cancel') {
-                await sock.sendMessage(senderJid, { text: 'Session ended.' });
-                sessionManager.clearSession(senderJid);
-                break;
-            }
-
             const distance = parseFloat(text);
             if (isNaN(distance) || distance < 0) {
                 await sock.sendMessage(senderJid, { text: 'Invalid distance. Please enter a valid number (e.g. 150):' });
@@ -378,9 +354,6 @@ async function handleRouteMessage(sock, senderJid, text, session) {
             break;
         }
 
-        // -------------------------------------------------------
-        // STEP 8: Final confirmation & Edit
-        // -------------------------------------------------------
         case 'ROUTE_AWAIT_CONFIRM_FINAL': {
             if (textLower === 'submit' || textLower === 'yes' || textLower === 'y') {
                 await finalizeRouteReport(sock, senderJid, session);
@@ -403,9 +376,6 @@ async function handleRouteMessage(sock, senderJid, text, session) {
                 sessionManager.updateSession(senderJid, session);
 
                 await askCurrentVehicle(sock, senderJid, session);
-            } else if (textLower === 'cancel') {
-                await sock.sendMessage(senderJid, { text: 'Session ended.' });
-                sessionManager.clearSession(senderJid);
             } else {
                 await sock.sendMessage(senderJid, { 
                     text: 'Please reply *submit* to send the report, or *edit [number]* to change an entry.' 

@@ -97,8 +97,16 @@ async function handleMessage(sock, msg) {
     const cmd = text.toLowerCase();
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
-    if (['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
-        if (hasSession(jid)) clearSession(jid); // Force exit current session if typing a command
+    if (['cancel', 'weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
+        if (hasSession(jid)) {
+            clearSession(jid);
+            if (cmd === 'cancel') {
+                await sock.sendMessage(jid, { text: '❌ Session ended.' });
+                return;
+            }
+        } else if (cmd === 'cancel') {
+            return; // Ignore "cancel" if no session exists to avoid noise
+        }
     } else {
         // ── Active session: route non-command input to the active state machine
         if (hasSession(jid)) {

@@ -47,12 +47,6 @@ async function handleWeighStep(sock, msg, text, jid) {
     const inputLower = input.toLowerCase();
     console.log(`[DEBUG] handleWeighStep: step=${session.step}, input="${input}"`);
 
-    if (inputLower === 'cancel') {
-        await reply('❌ Weighing session cancelled.');
-        clearSession(jid);
-        return true;
-    }
-
     switch (session.step) {
         // ── Step 1: Worker picks product ─────────────────────────────────────────
         case 'SELECT_PRODUCT': {
