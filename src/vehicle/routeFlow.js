@@ -211,17 +211,6 @@ async function handleRouteMessage(sock, senderJid, text, session) {
             const vehicle = session.vehicles[session.currentVehicleIndex];
 
             if (textLower === '0') {
-                // No route for this vehicle
-                session.vehicleRoutes.push({
-                    registration: vehicle.registration,
-                    nickname:     vehicle.nickname,
-                    make:         vehicle.make,
-                    branch:       vehicle.branch,
-                    routes:       [],
-                    reported_distance_km: 0
-                });
-                console.log(`Vehicle ${vehicle.registration}: no route.`);
-                
                 // Advance to next vehicle
                 if (session.isSingleEdit) {
                     session.vehicleRoutes[session.currentVehicleIndex] = {
