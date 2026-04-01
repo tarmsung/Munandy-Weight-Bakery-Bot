@@ -46,6 +46,56 @@ function buildRouteListMessage(routes) {
 }
 
 /**
+ * Build a text-based summary of all entered vehicle routes.
+ */
+function buildFinalSummary(session) {
+    let msg = `🏁 *Route Report Summary*\n`;
+    msg += `Driver: ${session.driverName}\n\n`;
+
+    let totalKm = 0;
+    session.vehicleRoutes.forEach((v, index) => {
+        const routesStr = v.routes.length > 0 
+            ? v.routes.map(r => r.name).join(', ') 
+            : '_No route_';
+        
+        msg += `${index + 1}. *${v.nickname}*\n`;
+        msg += `   Routes: ${routesStr}\n`;
+        msg += `   Distance: ${v.reported_distance_km} km\n\n`;
+        
+        totalKm += Number(v.reported_distance_km);
+    });
+
+    msg += `*Total Distance:* ${totalKm} km\n\n`;
+    msg += `Reply *submit* or *yes* to finalize this report.\n`;
+    msg += `Reply *edit [number]* to change a vehicle (e.g. *edit 1*).`;
+    
+    return msg;
+}
+
+/**
+ * Determine if we should ask for the next vehicle OR show the final summary.
+ */
+async function advanceOrSummary(sock, senderJid, session) {
+    if (session.isSingleEdit) {
+        // Return to summary immediately
+        session.isSingleEdit = false;
+        session.step = 'ROUTE_AWAIT_CONFIRM_FINAL';
+        sessionManager.updateSession(senderJid, session);
+        await sock.sendMessage(senderJid, { text: buildFinalSummary(session) });
+    } else {
+        session.currentVehicleIndex++;
+        if (session.currentVehicleIndex < session.vehicles.length) {
+            sessionManager.updateSession(senderJid, session);
+            await askCurrentVehicle(sock, senderJid, session);
+        } else {
+            session.step = 'ROUTE_AWAIT_CONFIRM_FINAL';
+            sessionManager.updateSession(senderJid, session);
+            await sock.sendMessage(senderJid, { text: buildFinalSummary(session) });
+        }
+    }
+}
+
+/**
  * Ask the bot user for the current vehicle's route(s).
  */
 async function askCurrentVehicle(sock, jid, session) {
@@ -173,15 +223,27 @@ async function handleRouteMessage(sock, senderJid, text, session) {
                 console.log(`Vehicle ${vehicle.registration}: no route.`);
                 
                 // Advance to next vehicle
-                session.currentVehicleIndex++;
-                sessionManager.updateSession(senderJid, session);
-
-                if (session.currentVehicleIndex < session.vehicles.length) {
-                    await askCurrentVehicle(sock, senderJid, session);
+                if (session.isSingleEdit) {
+                    session.vehicleRoutes[session.currentVehicleIndex] = {
+                        registration: vehicle.registration,
+                        nickname:     vehicle.nickname,
+                        make:         vehicle.make,
+                        branch:       vehicle.branch,
+                        routes:       [],
+                        reported_distance_km: 0
+                    };
                 } else {
-                    // All vehicles done — save and notify
-                    await finalizeRouteReport(sock, senderJid, session);
+                    session.vehicleRoutes.push({
+                        registration: vehicle.registration,
+                        nickname:     vehicle.nickname,
+                        make:         vehicle.make,
+                        branch:       vehicle.branch,
+                        routes:       [],
+                        reported_distance_km: 0
+                    });
                 }
+                console.log(`Vehicle ${vehicle.registration}: no route.`);
+                await advanceOrSummary(sock, senderJid, session);
                 break;
             } else {
                 // Parse comma-separated IDs
@@ -245,26 +307,30 @@ async function handleRouteMessage(sock, senderJid, text, session) {
             if (textLower === 'keep' || textLower === 'k') {
                 // Use the seeded distance as-is
                 const vehicle = session.vehicles[session.currentVehicleIndex];
-                session.vehicleRoutes.push({
-                    registration:         vehicle.registration,
-                    nickname:             vehicle.nickname,
-                    make:                 vehicle.make,
-                    branch:               vehicle.branch,
-                    routes:               session.tempRoutes,
-                    reported_distance_km: session.tempSeededDistance
-                });
+                if (session.isSingleEdit) {
+                    session.vehicleRoutes[session.currentVehicleIndex] = {
+                        registration:         vehicle.registration,
+                        nickname:             vehicle.nickname,
+                        make:                 vehicle.make,
+                        branch:               vehicle.branch,
+                        routes:               session.tempRoutes,
+                        reported_distance_km: session.tempSeededDistance
+                    };
+                } else {
+                    session.vehicleRoutes.push({
+                        registration:         vehicle.registration,
+                        nickname:             vehicle.nickname,
+                        make:                 vehicle.make,
+                        branch:               vehicle.branch,
+                        routes:               session.tempRoutes,
+                        reported_distance_km: session.tempSeededDistance
+                    });
+                }
                 console.log(`Vehicle ${vehicle.registration}: routes ${session.tempRoutes.map(r => r.name).join(', ')}, distance kept at ${session.tempSeededDistance} km`);
 
                 session.tempRoutes        = null;
                 session.tempSeededDistance = null;
-                session.currentVehicleIndex++;
-                sessionManager.updateSession(senderJid, session);
-
-                if (session.currentVehicleIndex < session.vehicles.length) {
-                    await askCurrentVehicle(sock, senderJid, session);
-                } else {
-                    await finalizeRouteReport(sock, senderJid, session);
-                }
+                await advanceOrSummary(sock, senderJid, session);
             } else if (textLower === 'change' || textLower === 'c') {
                 // Driver wants to enter a new distance
                 session.step = 'ROUTE_AWAIT_DISTANCE';
@@ -296,27 +362,64 @@ async function handleRouteMessage(sock, senderJid, text, session) {
                 break;
             }
 
-            const vehicle = session.vehicles[session.currentVehicleIndex];
-            session.vehicleRoutes.push({
-                registration: vehicle.registration,
-                nickname:     vehicle.nickname,
-                make:         vehicle.make,
-                branch:       vehicle.branch,
-                routes:       session.tempRoutes,
-                reported_distance_km: distance
-            });
+            if (session.isSingleEdit) {
+                session.vehicleRoutes[session.currentVehicleIndex] = {
+                    registration: vehicle.registration,
+                    nickname:     vehicle.nickname,
+                    make:         vehicle.make,
+                    branch:       vehicle.branch,
+                    routes:       session.tempRoutes,
+                    reported_distance_km: distance
+                };
+            } else {
+                session.vehicleRoutes.push({
+                    registration: vehicle.registration,
+                    nickname:     vehicle.nickname,
+                    make:         vehicle.make,
+                    branch:       vehicle.branch,
+                    routes:       session.tempRoutes,
+                    reported_distance_km: distance
+                });
+            }
             console.log(`Vehicle ${vehicle.registration}: routes ${session.tempRoutes.map(r => r.name).join(', ')}, distance: ${distance}km`);
 
             session.tempRoutes = null;
-            // Advance to next vehicle
-            session.currentVehicleIndex++;
-            sessionManager.updateSession(senderJid, session);
+            await advanceOrSummary(sock, senderJid, session);
+            break;
+        }
 
-            if (session.currentVehicleIndex < session.vehicles.length) {
-                await askCurrentVehicle(sock, senderJid, session);
-            } else {
-                // All vehicles done — save and notify
+        // -------------------------------------------------------
+        // STEP 8: Final confirmation & Edit
+        // -------------------------------------------------------
+        case 'ROUTE_AWAIT_CONFIRM_FINAL': {
+            if (textLower === 'submit' || textLower === 'yes' || textLower === 'y') {
                 await finalizeRouteReport(sock, senderJid, session);
+            } else if (textLower.startsWith('edit')) {
+                // Parse number
+                const parts = textLower.split(' ');
+                const num = parts.length > 1 ? parseInt(parts[1]) : null;
+
+                if (!num || isNaN(num) || num < 1 || num > session.vehicleRoutes.length) {
+                    await sock.sendMessage(senderJid, { 
+                        text: `Invalid selection. Please reply *edit [number]* where the number is between 1 and ${session.vehicleRoutes.length}.` 
+                    });
+                    break;
+                }
+
+                // Prepare for single edit
+                session.currentVehicleIndex = num - 1;
+                session.isSingleEdit = true;
+                session.step = 'ROUTE_AWAIT_ROUTE';
+                sessionManager.updateSession(senderJid, session);
+
+                await askCurrentVehicle(sock, senderJid, session);
+            } else if (textLower === 'cancel') {
+                await sock.sendMessage(senderJid, { text: 'Session ended.' });
+                sessionManager.clearSession(senderJid);
+            } else {
+                await sock.sendMessage(senderJid, { 
+                    text: 'Please reply *submit* to send the report, or *edit [number]* to change an entry.' 
+                });
             }
             break;
         }
