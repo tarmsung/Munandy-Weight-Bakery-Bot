@@ -85,6 +85,7 @@ async function advanceOrSummary(sock, senderJid, session) {
     } else {
         session.currentVehicleIndex++;
         if (session.currentVehicleIndex < session.vehicles.length) {
+            session.step = 'ROUTE_AWAIT_ROUTE';
             sessionManager.updateSession(senderJid, session);
             await askCurrentVehicle(sock, senderJid, session);
         } else {
