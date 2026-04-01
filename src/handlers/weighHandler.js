@@ -26,7 +26,7 @@ async function startWeigh(sock, jid, senderNumber) {
     products.forEach((p, i) => {
         menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
     });
-    menu += '\nReply with the *number* of the product.';
+    menu += '\nReply with the *number* of the product, or type *cancel* to end.';
 
     setSession(jid, { flowType: 'weigh', step: 'SELECT_PRODUCT', senderNumber, branch, products, samples: [] });
     await sock.sendMessage(jid, { text: menu });
@@ -44,7 +44,14 @@ async function handleWeighStep(sock, msg, text, jid) {
         sock.sendMessage(jid, { text: message }, { quoted: msg });
 
     const input = text.trim();
+    const inputLower = input.toLowerCase();
     console.log(`[DEBUG] handleWeighStep: step=${session.step}, input="${input}"`);
+
+    if (inputLower === 'cancel') {
+        await reply('❌ Weighing session cancelled.');
+        clearSession(jid);
+        return true;
+    }
 
     switch (session.step) {
         // ── Step 1: Worker picks product ─────────────────────────────────────────
