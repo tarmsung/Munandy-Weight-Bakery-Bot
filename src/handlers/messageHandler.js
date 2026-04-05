@@ -10,7 +10,7 @@ const { handleRouteMessage } = require('../vehicle/routeFlow');
 const { handleEditMessage } = require('../vehicle/editFlow');
 const { getAllSupervisors } = require('../db/supervisors');
 
-const { sendEndOfDayReport } = require('../scheduler');
+const { sendEndOfDayReport, runDailyFleetReport } = require('../scheduler');
 
 function getMessageText(msg) {
     return (
@@ -155,8 +155,20 @@ async function handleMessage(sock, msg) {
         }
 
         if (cmd === '!testreport') {
-            await sock.sendMessage(jid, { text: `⏳ Generating manual report with AI analysis... Please wait a few seconds.` });
+            await sock.sendMessage(jid, { text: `⏳ Generating manual weight report with AI analysis... Please wait a few seconds.` });
             await sendEndOfDayReport();
+            return;
+        }
+
+        if (cmd === '!testfleet') {
+            await sock.sendMessage(jid, { text: `⏳ Generating manual fleet report... Please wait a few seconds.` });
+            try {
+                await runDailyFleetReport();
+                await sock.sendMessage(jid, { text: `✅ Fleet report triggered. Check the Munandy Transport group.` });
+            } catch (err) {
+                console.error('[!testfleet] Error:', err);
+                await sock.sendMessage(jid, { text: `❌ Failed to generate fleet report: ${err.message}` });
+            }
             return;
         }
     }

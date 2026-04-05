@@ -13,11 +13,18 @@ const {
 const { getFleetSuggestions } = require('./fleetSuggestions');
 const { buildFleetReportMessage } = require('./reportBuilder');
 const supabase = require('../db/supabase');
+const { getSocket } = require('../state');
 
 /**
  * Main function to run the daily fleet report.
  */
-async function runDailyFleetReport(sock) {
+async function runDailyFleetReport() {
+    const sock = getSocket();
+    if (!sock) {
+        console.warn(`[${new Date().toISOString()}] ⚠️ No active socket — skipping daily fleet report.`);
+        return;
+    }
+
     const reportDate = new Date().toISOString().split('T')[0];
     
     console.log(`[${new Date().toISOString()}] 📋 Starting automated daily fleet report for ${reportDate}...`);
@@ -139,12 +146,15 @@ async function runDailyFleetReport(sock) {
 /**
  * Initializes the cron job for the daily fleet report.
  */
-function initDailyFleetReportCron(sock) {
+function initDailyFleetReportCron() {
     // Hardcoded to 4:00 PM (16:00) Harare time
     const reportTime = '0 16 * * *';
     
     cron.schedule(reportTime, () => {
-        runDailyFleetReport(sock);
+        console.log(`[${new Date().toISOString()}] ⏰ Cron triggered — running daily fleet report...`);
+        runDailyFleetReport().catch((err) =>
+            console.error(`[${new Date().toISOString()}] ❌ Daily fleet report error:`, err.message)
+        );
     }, {
         timezone: "Africa/Johannesburg"
     });
