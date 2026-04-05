@@ -66,11 +66,18 @@ async function runDailyFleetReport() {
         
         // We need drivers for well-performing section, but Q2 only gives faults drivers
         // Let's get all today's reports to find drivers for well-performing ones
+        // Fetch today's submissions — plain select, no FK join
         const { data: todaySubmissions } = await supabase
             .from('inspection_reports')
-            .select('vehicle_registration, drivers(name)')
+            .select('vehicle_registration, driver_id')
             .gte('submitted_at', `${reportDate}T00:00:00`)
             .lte('submitted_at', `${reportDate}T23:59:59`);
+
+        // Fetch drivers for name lookup
+        const { data: allDrivers } = await supabase
+            .from('drivers')
+            .select('id, name');
+        const driverMap = new Map((allDrivers || []).map(d => [String(d.id), d]));
 
         const wellPerforming = [];
         (todaySubmissions || []).forEach(sub => {
@@ -79,7 +86,7 @@ async function runDailyFleetReport() {
                 if (vehicle) {
                     wellPerforming.push({
                         ...vehicle,
-                        driver_name: sub.drivers?.name || 'Unknown'
+                        driver_name: driverMap.get(String(sub.driver_id))?.name || 'Unknown'
                     });
                 }
             }

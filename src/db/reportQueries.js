@@ -35,34 +35,39 @@ async function getUnfiledReports(reportDate) {
 
 /**
  * Q2 — Today's faults
+ * Fetches reports, then manually enriches with vehicle/driver data.
  */
 async function getDailyFaults(reportDate) {
     try {
-        const { data, error } = await supabase
-            .from('inspection_reports')
-            .select(`
-                vehicle_registration,
-                driver_id,
-                checklist,
-                vehicles (nickname, make),
-                drivers (name)
-            `)
-            .gte('submitted_at', `${reportDate}T00:00:00`)
-            .lte('submitted_at', `${reportDate}T23:59:59`);
+        // Fetch all vehicles and drivers for manual lookup (no FK on inspection_reports)
+        const [{ data: allVehicles }, { data: allDrivers }, { data: reports, error }] = await Promise.all([
+            supabase.from('vehicles').select('registration, make, nickname'),
+            supabase.from('drivers').select('id, name'),
+            supabase.from('inspection_reports')
+                .select('vehicle_registration, driver_id, checklist')
+                .gte('submitted_at', `${reportDate}T00:00:00`)
+                .lte('submitted_at', `${reportDate}T23:59:59`)
+        ]);
 
         if (error) throw error;
 
+        const vehicleMap = new Map((allVehicles || []).map(v => [v.registration, v]));
+        const driverMap  = new Map((allDrivers  || []).map(d => [String(d.id), d]));
+
         const faults = [];
-        data.forEach(report => {
+        (reports || []).forEach(report => {
+            const vehicle = vehicleMap.get(report.vehicle_registration) || {};
+            const driver  = driverMap.get(String(report.driver_id)) || {};
             const checklist = report.checklist || [];
+
             checklist.forEach(item => {
                 if (item.status === 'FAULT') {
                     faults.push({
                         registration: report.vehicle_registration,
                         driver_id:    report.driver_id,
-                        driver_name:  report.drivers?.name || 'Unknown',
-                        nickname:     report.vehicles?.nickname || '',
-                        make:         report.vehicles?.make || 'Unknown',
+                        driver_name:  driver.name || 'Unknown',
+                        nickname:     vehicle.nickname || '',
+                        make:         vehicle.make || 'Unknown',
                         item:         item.item,
                         description:  item.fault_description
                     });
@@ -78,6 +83,7 @@ async function getDailyFaults(reportDate) {
 
 /**
  * Q3 — Faults reported 3 or more consecutive days
+ * Manual vehicle lookup — no FK join.
  */
 async function getFaultStreaks(reportDate, lookbackDays = 14) {
     try {
@@ -85,51 +91,50 @@ async function getFaultStreaks(reportDate, lookbackDays = 14) {
         startDate.setDate(startDate.getDate() - lookbackDays);
         const startDateStr = startDate.toISOString().split('T')[0];
 
-        const { data, error } = await supabase
-            .from('inspection_reports')
-            .select('vehicle_registration, submitted_at, checklist, vehicles(nickname, make)')
-            .gte('submitted_at', `${startDateStr}T00:00:00`)
-            .lte('submitted_at', `${reportDate}T23:59:59`)
-            .order('submitted_at', { ascending: false });
+        const [{ data: allVehicles }, { data, error }] = await Promise.all([
+            supabase.from('vehicles').select('registration, make, nickname'),
+            supabase.from('inspection_reports')
+                .select('vehicle_registration, submitted_at, checklist')
+                .gte('submitted_at', `${startDateStr}T00:00:00`)
+                .lte('submitted_at', `${reportDate}T23:59:59`)
+                .order('submitted_at', { ascending: false })
+        ]);
 
         if (error) throw error;
+
+        const vehicleMap = new Map((allVehicles || []).map(v => [v.registration, v]));
 
         // Map: vehicle_reg -> item -> streak info
         const streaksMap = {};
 
-        data.forEach(report => {
+        (data || []).forEach(report => {
             const reg = report.vehicle_registration;
             const date = report.submitted_at.split('T')[0];
             const checklist = report.checklist || [];
 
-            if (!streaksMap[reg]) streaksMap[reg] = { 
-                info: report.vehicles,
-                items: {} 
+            if (!streaksMap[reg]) streaksMap[reg] = {
+                info: vehicleMap.get(reg) || {},
+                items: {}
             };
 
             checklist.forEach(item => {
                 if (item.status === 'FAULT') {
                     if (!streaksMap[reg].items[item.item]) {
-                        streaksMap[reg].items[item.item] = { 
-                            streak: 1, 
+                        streaksMap[reg].items[item.item] = {
+                            streak: 1,
                             firstDate: date,
                             lastDate: date,
                             history: [date]
                         };
                     } else {
-                        // Check if consecutive
-                        const lastDate = new Date(streaksMap[reg].items[item.item].lastDate);
+                        const lastDate    = new Date(streaksMap[reg].items[item.item].lastDate);
                         const currentDate = new Date(date);
-                        const diffTime = Math.abs(lastDate - currentDate);
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        const diffDays    = Math.ceil(Math.abs(lastDate - currentDate) / (1000 * 60 * 60 * 24));
 
                         if (diffDays === 1) {
                             streaksMap[reg].items[item.item].streak++;
                             streaksMap[reg].items[item.item].lastDate = date;
                             streaksMap[reg].items[item.item].history.push(date);
-                        } else if (diffDays > 1) {
-                            // Streak broken in reverse order (older reports)
-                            // We only care about CURRENT streaks ending today
                         }
                     }
                 }
@@ -137,16 +142,16 @@ async function getFaultStreaks(reportDate, lookbackDays = 14) {
         });
 
         const finalStreaks = [];
-        for (const [reg, data] of Object.entries(streaksMap)) {
-            for (const [itemName, info] of Object.entries(data.items)) {
+        for (const [reg, regData] of Object.entries(streaksMap)) {
+            for (const [itemName, info] of Object.entries(regData.items)) {
                 if (info.streak >= 3) {
                     finalStreaks.push({
                         registration: reg,
-                        nickname:     data.info?.nickname,
-                        make:         data.info?.make,
+                        nickname:     regData.info?.nickname,
+                        make:         regData.info?.make,
                         item:         itemName,
                         streak:       info.streak,
-                        firstDate:    info.lastDate // In our reverse crawl, lastDate is the oldest consecutive
+                        firstDate:    info.lastDate
                     });
                 }
             }
@@ -160,6 +165,7 @@ async function getFaultStreaks(reportDate, lookbackDays = 14) {
 
 /**
  * Q4 — Issues resolved today
+ * Manual vehicle lookup — no FK join.
  */
 async function getResolvedIssues(reportDate) {
     try {
@@ -167,27 +173,29 @@ async function getResolvedIssues(reportDate) {
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-        const { data: todayReports, error: tError } = await supabase
-            .from('inspection_reports')
-            .select('vehicle_registration, checklist, vehicles(nickname, make)')
-            .gte('submitted_at', `${reportDate}T00:00:00`)
-            .lte('submitted_at', `${reportDate}T23:59:59`);
-        
-        if (tError) throw tError;
+        const [{ data: allVehicles }, { data: todayReports, error: tError }, { data: yesterdayReports, error: yError }] = await Promise.all([
+            supabase.from('vehicles').select('registration, make, nickname'),
+            supabase.from('inspection_reports')
+                .select('vehicle_registration, checklist')
+                .gte('submitted_at', `${reportDate}T00:00:00`)
+                .lte('submitted_at', `${reportDate}T23:59:59`),
+            supabase.from('inspection_reports')
+                .select('vehicle_registration, checklist')
+                .gte('submitted_at', `${yesterdayStr}T00:00:00`)
+                .lte('submitted_at', `${yesterdayStr}T23:59:59`)
+        ]);
 
-        const { data: yesterdayReports, error: yError } = await supabase
-            .from('inspection_reports')
-            .select('vehicle_registration, checklist')
-            .gte('submitted_at', `${yesterdayStr}T00:00:00`)
-            .lte('submitted_at', `${yesterdayStr}T23:59:59`);
-        
+        if (tError) throw tError;
         if (yError) throw yError;
 
+        const vehicleMap = new Map((allVehicles || []).map(v => [v.registration, v]));
+
         const resolved = [];
-        todayReports.forEach(tReport => {
-            const yReport = yesterdayReports.find(yr => yr.vehicle_registration === tReport.vehicle_registration);
+        (todayReports || []).forEach(tReport => {
+            const yReport = (yesterdayReports || []).find(yr => yr.vehicle_registration === tReport.vehicle_registration);
             if (!yReport) return;
 
+            const vehicle    = vehicleMap.get(tReport.vehicle_registration) || {};
             const tChecklist = tReport.checklist || [];
             const yChecklist = yReport.checklist || [];
 
@@ -196,8 +204,8 @@ async function getResolvedIssues(reportDate) {
                 if (yItem && yItem.status === 'FAULT' && tItem.status === 'OK') {
                     resolved.push({
                         registration: tReport.vehicle_registration,
-                        nickname:     tReport.vehicles?.nickname,
-                        make:         tReport.vehicles?.make,
+                        nickname:     vehicle.nickname,
+                        make:         vehicle.make,
                         item:         tItem.item
                     });
                 }
