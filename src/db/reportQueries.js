@@ -293,17 +293,20 @@ async function getInsuranceDue(reportDate) {
 }
 
 /**
- * Check if a report exists for a specific date
+ * Check if a report has already been successfully sent for a specific date.
+ * Returns true only if the report row exists AND sent = true.
+ * A row with sent = false means a previous attempt saved but failed to deliver —
+ * in that case we should retry, so we return false.
  */
 async function checkReportExists(reportDate) {
     const { data, error } = await supabase
         .from('daily_reports')
-        .select('id')
+        .select('id, sent')
         .eq('date', reportDate)
         .maybeSingle();
     
     if (error) throw error;
-    return !!data;
+    return !!(data && data.sent === true);
 }
 
 /**

@@ -98,7 +98,7 @@ async function sendEndOfDayReport() {
     const imagePath = path.join(REPORTS_DIR, `report_${dateStr}.png`);
     fs.writeFileSync(imagePath, imageBuffer);
 
-    // Send Master Report to Admins & Supervisors
+    // Send Master Report to Admins only
     for (const num of recipients) {
         const jid = `${num}@s.whatsapp.net`;
         await sock.sendMessage(jid, { 
@@ -106,37 +106,6 @@ async function sendEndOfDayReport() {
             caption: summaryText 
         });
         console.log(`📊 EOD master report sent as image to ${num}`);
-    }
-
-    // ── Send Branch-Specific Reports to Groups ────────────────────────────────
-    const branchGroups = {
-        'Harare': process.env.HARARE_GROUP_ID,
-        'Mutare': process.env.MUTARE_GROUP_ID,
-        'Bulawayo': process.env.BULAWAYO_GROUP_ID
-    };
-
-    for (const [branch, groupId] of Object.entries(branchGroups)) {
-        if (!groupId) continue;
-
-        const branchRecords = records.filter(r => (r.branch || 'Unknown').toLowerCase() === branch.toLowerCase());
-
-        if (branchRecords.length === 0) {
-            await sock.sendMessage(groupId, {
-                text: `📭 *End-of-Day Report - ${branch}*\n_${dateLabel}_\n\nNo weight records were recorded for this branch today.`,
-            });
-            console.log(`📊 EOD branch report sent to ${branch} group (no records).`);
-            continue;
-        }
-
-        const branchAiAnalysis = await generateAIAnalysis(branchRecords);
-        const branchSummaryText = buildSummaryText(branchRecords, dateLabel, branchAiAnalysis);
-        const branchImageBuffer = await generateImageReport(branchRecords, dateLabel, branchAiAnalysis);
-
-        await sock.sendMessage(groupId, { 
-            image: branchImageBuffer, 
-            caption: branchSummaryText 
-        });
-        console.log(`📊 EOD branch report sent as image to ${branch} group.`);
     }
 }
 
@@ -233,21 +202,19 @@ async function checkMorningSubmissions() {
 }
 
 function startScheduler() {
-    // End-of-Day auto report is now disabled; triggered manually by supervisors via "3️⃣ Submit Report"
-    /*
-    const cronExpr = process.env.REPORT_TIME || '0 18 * * *';
+    // End-of-Day Weight Report: 4:00 PM daily to admins
+    const cronExpr = '0 16 * * *';
     cron.schedule(
         cronExpr,
         () => {
-            console.log('⏰ Running end-of-day report...');
+            console.log('⏰ Running end-of-day weight report...');
             sendEndOfDayReport().catch((err) =>
                 console.error('❌ EOD report error:', err.message)
             );
         },
         { timezone: 'Africa/Johannesburg' }
     );
-    console.log(`⏰ Scheduler started — EOD report at ${cronExpr} (Africa/Johannesburg)`);
-    */
+    console.log(`⏰ Scheduler started — EOD weight report at ${cronExpr} (Africa/Johannesburg)`);
 
     // Morning Check: 9:00 AM daily
     const morningCronExpr = process.env.MORNING_CHECK_TIME || '0 9 * * *';
