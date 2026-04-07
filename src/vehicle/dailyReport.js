@@ -18,7 +18,7 @@ const { getSocket } = require('../state');
 /**
  * Main function to run the daily fleet report.
  */
-async function runDailyFleetReport() {
+async function runDailyFleetReport(isManual = false) {
     const sock = getSocket();
     if (!sock) {
         console.warn(`[${new Date().toISOString()}] ⚠️ No active socket — skipping daily fleet report.`);
@@ -31,10 +31,12 @@ async function runDailyFleetReport() {
 
     try {
         // Step 1: Guard against duplicate run
-        const exists = await checkReportExists(reportDate);
-        if (exists) {
-            console.warn(`[${new Date().toISOString()}] ⚠️ Fleet report for today (${reportDate}) already exists. Skipping.`);
-            return;
+        if (!isManual) {
+            const exists = await checkReportExists(reportDate);
+            if (exists) {
+                console.warn(`[${new Date().toISOString()}] ⚠️ Fleet report for today (${reportDate}) already exists. Skipping.`);
+                return;
+            }
         }
 
         // Step 2: Run all queries in parallel
@@ -109,9 +111,11 @@ async function runDailyFleetReport() {
         // Step 5: Assemble message
         const message = buildFleetReportMessage(reportData, reportDate);
 
-        // Step 6: Save report to DB
-        console.log(`[${new Date().toISOString()}] 💾 Saving report payload to database...`);
-        await saveDailyReport(reportDate, reportData);
+        // Step 6: Save report to DB (only for automated runs)
+        if (!isManual) {
+            console.log(`[${new Date().toISOString()}] 💾 Saving report payload to database...`);
+            await saveDailyReport(reportDate, reportData);
+        }
 
         // Step 7: Send message with retries
         const notifyJid = process.env.NOTIFY_GROUP_JID;
@@ -129,7 +133,9 @@ async function runDailyFleetReport() {
                 console.log(`[${new Date().toISOString()}] 📤 Sending report to group (Attempt ${retries + 1})...`);
                 await sock.sendMessage(notifyJid, { text: message });
                 sent = true;
-                await markReportSent(reportDate);
+                if (!isManual) {
+                    await markReportSent(reportDate);
+                }
                 console.log(`[${new Date().toISOString()}] ✅ Daily fleet report successfully sent!`);
             } catch (err) {
                 console.error(`[${new Date().toISOString()}] ❌ Failed to send report (Attempt ${retries + 1}):`, err.message);
@@ -154,12 +160,12 @@ async function runDailyFleetReport() {
  * Initializes the cron job for the daily fleet report.
  */
 function initDailyFleetReportCron() {
-    // Hardcoded to 4:00 PM (16:00) Harare time
-    const reportTime = '0 16 * * *';
+    // Hardcoded to 10:00 AM (10:00) Harare time
+    const reportTime = '0 10 * * *';
     
     cron.schedule(reportTime, () => {
         console.log(`[${new Date().toISOString()}] ⏰ Cron triggered — running daily fleet report...`);
-        runDailyFleetReport().catch((err) =>
+        runDailyFleetReport(false).catch((err) =>
             console.error(`[${new Date().toISOString()}] ❌ Daily fleet report error:`, err.message)
         );
     }, {

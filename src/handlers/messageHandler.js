@@ -163,7 +163,7 @@ async function handleMessage(sock, msg) {
         if (cmd === '!testfleet') {
             await sock.sendMessage(jid, { text: `⏳ Generating manual fleet report... Please wait a few seconds.` });
             try {
-                await runDailyFleetReport();
+                await runDailyFleetReport(true);
                 await sock.sendMessage(jid, { text: `✅ Fleet report triggered. Check the Munandy Transport group.` });
             } catch (err) {
                 console.error('[!testfleet] Error:', err);

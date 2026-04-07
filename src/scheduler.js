@@ -186,10 +186,10 @@ async function checkMorningSubmissions() {
         }
     }
 
-    if (missingBranches.length > 0) {
-        const adminNumsStr = process.env.ADMIN_NUMBERS || '';
-        const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
+    const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+    const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
 
+    if (missingBranches.length > 0) {
         const alertText = `⚠️ *Morning Report Missing*\n\nNo weight records have been submitted for the following branches yet today:\n\n` +
             missingBranches.map(b => `• *${b}*`).join('\n') +
             `\n\n_Please follow up with the supervisors._`;
@@ -197,6 +197,12 @@ async function checkMorningSubmissions() {
         for (const num of adminNums) {
             await sock.sendMessage(`${num}@s.whatsapp.net`, { text: alertText });
             console.log(`⏰ Sent morning reminder to admin ${num} about branches: ${missingBranches.join(', ')}`);
+        }
+    } else {
+        const successText = `✅ *Morning Check Complete*\n\nAll branches have submitted their weight records for today.`;
+        for (const num of adminNums) {
+            await sock.sendMessage(`${num}@s.whatsapp.net`, { text: successText });
+            console.log(`⏰ Sent morning success message to admin ${num}`);
         }
     }
 }
