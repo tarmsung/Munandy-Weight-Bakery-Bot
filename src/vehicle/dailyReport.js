@@ -160,8 +160,8 @@ async function runDailyFleetReport(isManual = false) {
  * Initializes the cron job for the daily fleet report.
  */
 function initDailyFleetReportCron() {
-    // Hardcoded to 10:00 AM (10:00) Harare time
-    const reportTime = '0 10 * * *';
+    // Hardcoded to 6:00 PM (18:00) Harare time
+    const reportTime = '0 18 * * *';
     
     cron.schedule(reportTime, () => {
         console.log(`[${new Date().toISOString()}] ⏰ Cron triggered — running daily fleet report...`);
