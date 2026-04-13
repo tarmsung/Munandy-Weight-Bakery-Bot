@@ -10,7 +10,7 @@ const {
     saveDailyReport,
     markReportSent
 } = require('../db/reportQueries');
-const { getFleetSuggestions } = require('./fleetSuggestions');
+const { getClaudeAnalysis } = require('./claudeAnalysis');
 const { buildFleetReportMessage } = require('./reportBuilder');
 const supabase = require('../db/supabase');
 const { getSocket } = require('../state');
@@ -104,9 +104,9 @@ async function runDailyFleetReport(isManual = false) {
             wellPerforming
         };
 
-        // Step 4: Generate suggestions
-        console.log(`[${new Date().toISOString()}] 💡 Generating suggestions...`);
-        reportData.suggestions = getFleetSuggestions(reportData);
+        // Step 4: Generate AI analysis via Claude
+        console.log(`[${new Date().toISOString()}] 🤖 Generating Claude AI analysis...`);
+        reportData.suggestions = await getClaudeAnalysis(reportData);
 
         // Step 5: Assemble message
         const message = buildFleetReportMessage(reportData, reportDate);

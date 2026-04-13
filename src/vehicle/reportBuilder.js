@@ -93,8 +93,8 @@ function buildFleetReportMessage(reportData, reportDate) {
     }
     message += `\n`;
 
-    // 6. Suggestions 💡
-    message += `*6. Suggestions 💡*\n`;
+    // 6. AI Analysis 🤖
+    message += `*6. AI Analysis 🤖*\n`;
     message += (suggestions || "No suggestions available.") + `\n\n`;
 
     // 7. Service or Suspension due in the next 2 weeks 🔧
