@@ -1,4 +1,4 @@
-const { lookupDriverAndVehicle, saveInspectionReport, updateReport } = require('../db/vehicles');
+const { lookupDriverAndVehicle, saveInspectionReport, updateReport, getAllDrivers } = require('../db/vehicles');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 const checklistItems = require('./checklist');
 const reportHelper = require('./report');
@@ -195,13 +195,63 @@ async function handleVanStep(sock, msg, text, jid) {
             return true;
             
         case 'AWAITING_COMMENTS': {
-            // Store comments
-            let finalComments = textLower === 'none' ? '' : input;
-            
-            // Finalize and Save
-            const finalSession = { ...session, comments: finalComments };
+            // Store comments and move to driver selection
+            const finalComments = textLower === 'none' ? '' : input;
+            setSession(jid, { ...session, comments: finalComments, step: 'AWAITING_DRIVER_SELECTION' });
+
+            // Fetch all drivers and display numbered list
+            let drivers;
+            try {
+                drivers = await getAllDrivers();
+            } catch (err) {
+                console.error('Failed to fetch drivers for selection:', err);
+                await sock.sendMessage(jid, { text: "Could not load driver list. Please contact an administrator." });
+                clearSession(jid);
+                return true;
+            }
+
+            if (!drivers || drivers.length === 0) {
+                await sock.sendMessage(jid, { text: "No drivers found in the system. Please contact an administrator." });
+                clearSession(jid);
+                return true;
+            }
+
+            // Store driver list in session for validation later
+            setSession(jid, { ...getSession(jid), driversList: drivers });
+
+            const listLines = drivers.map((d, i) => `${i + 1}. ${d.name} (${d.branch})`).join('\n');
+            await sock.sendMessage(jid, {
+                text: `👤 *Who is driving today?*\nReply with the number next to the driver's name:\n\n${listLines}`
+            });
+            return true;
+        }
+
+        case 'AWAITING_DRIVER_SELECTION': {
+            const drivers = session.driversList || [];
+            const choice = parseInt(input, 10);
+
+            if (isNaN(choice) || choice < 1 || choice > drivers.length) {
+                await sock.sendMessage(jid, {
+                    text: `Please reply with a number between 1 and ${drivers.length}.`
+                });
+                return true;
+            }
+
+            const selectedDriver = drivers[choice - 1];
+
+            // Update session with the selected driver
+            const finalSession = {
+                ...session,
+                driverID:   selectedDriver.id,
+                driverName: selectedDriver.name,
+                branch:     selectedDriver.branch
+            };
             setSession(jid, finalSession);
-            
+
+            await sock.sendMessage(jid, {
+                text: `✅ Driver set to *${selectedDriver.name}*. Saving report...`
+            });
+
             await finalizeSubmission(sock, jid, finalSession);
             return true;
         }
