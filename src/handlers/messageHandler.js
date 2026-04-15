@@ -105,7 +105,11 @@ async function handleMessage(sock, msg) {
 
     // ── Expense Interception ───────────────────────────────────────────────────
     if (expenseGroupJid && jid === expenseGroupJid) {
-        if (cmdRaw.includes('expense') || cmdRaw.includes('exepnse')) {
+        const isExpenseTrigger = cmdRaw.startsWith('expense');
+        const isCommand = ['!ping', 'ping', 'cancel', '!expenses'].includes(cmdRaw);
+
+        // We only process if it starts with "Expense" or is a specific bot command
+        if (isExpenseTrigger) {
             await sock.sendMessage(jid, { text: `⏳ Processing expense data...` }, { quoted: msg });
             const data = await extractExpenseData(text);
             if (data && data.vehicle_registration && data.amount != null) {
@@ -127,6 +131,12 @@ async function handleMessage(sock, msg) {
                 await sock.sendMessage(jid, { text: `❌ Could not extract the expense details. Please ensure the vehicle, exact amount, and description are clear.` }, { quoted: msg });
             }
             return; // consumed
+        }
+        
+        // If it's not a command either, we ignore the message (general chatter)
+        if (!isCommand) {
+            console.log(`[EXPENSE GROUP] Ignored non-expense message: ${text.substring(0, 20)}...`);
+            return;
         }
     }
 
@@ -220,6 +230,26 @@ async function handleMessage(sock, msg) {
 
         if (cmd === '!getjid') {
             await sock.sendMessage(jid, { text: `📍 The JID for this chat is: *${jid}*` }, { quoted: msg });
+            return;
+        }
+
+        if (cmd === '!expenses') {
+            const { getRecentExpenses } = require('../db/expenses');
+            try {
+                const recent = await getRecentExpenses(10);
+                if (recent.length === 0) {
+                    await sock.sendMessage(jid, { text: "No expenses recorded recently." });
+                } else {
+                    let list = "*Last 10 Vehicle Expenses:*\n\n";
+                    recent.forEach(exp => {
+                        const date = new Date(exp.expense_date).toLocaleDateString();
+                        list += `• [${date}] *${exp.vehicle_registration}*: $${exp.amount} (${exp.description})\n`;
+                    });
+                    await sock.sendMessage(jid, { text: list });
+                }
+            } catch (err) {
+                await sock.sendMessage(jid, { text: "❌ Failed to fetch expenses." });
+            }
             return;
         }
     }

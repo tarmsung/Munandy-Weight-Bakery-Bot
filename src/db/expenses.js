@@ -100,8 +100,29 @@ async function getMonthlyDistances(month, year) {
     }
 }
 
+/**
+ * Fetches the most recent vehicle expenses.
+ * @param {number} limit - Number of records to fetch
+ */
+async function getRecentExpenses(limit = 10) {
+    try {
+        const { data, error } = await supabase
+            .from('vehicle_expenses')
+            .select('*')
+            .order('expense_date', { ascending: false })
+            .limit(limit);
+
+        if (error) throw error;
+        return data;
+    } catch (err) {
+        console.error('Error in getRecentExpenses:', err);
+        throw err;
+    }
+}
+
 module.exports = {
     saveVehicleExpense,
     getMonthlyExpenses,
-    getMonthlyDistances
+    getMonthlyDistances,
+    getRecentExpenses
 };

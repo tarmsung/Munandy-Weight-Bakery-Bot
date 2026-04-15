@@ -20,8 +20,8 @@ async function extractExpenseData(rawMessage) {
 Your job is to read a raw WhatsApp message about a vehicle expense and extract the exact details into JSON.
 
 Rules:
-1. Identify the vehicle registration or nickname (e.g. "ADH 4321", "White Sprinter"). Return it exactly as it appears.
-2. Identify the total monetary amount spent as a number.
+1. Identify the vehicle registration or nickname (e.g. "ADH 4321", "White Sprinter", "ACH4184"). Return it exactly as it appears.
+2. Identify the total monetary amount spent as a pure number. Ignore "$" or currency symbols in the input.
 3. Identify the description or purpose of the expense (e.g. "bought new tyres", "tollgate").
 4. Your response MUST be valid JSON only, with no markdown formatting, no backticks, and exactly these three keys:
    {
@@ -35,8 +35,8 @@ Rules:
         console.log(`[${new Date().toISOString()}] 🤖 Calling Claude AI to extract expense data...`);
 
         const message = await client.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 300,
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
             temperature: 0,
             messages: [
                 { role: 'user', content: userPrompt }
@@ -45,13 +45,15 @@ Rules:
         });
 
         let responseText = message.content?.[0]?.text?.trim() || '';
+        console.log(`[Expense Extraction] Raw AI Response: ${responseText}`);
         
-        // Remove markdown backticks if Claude included them despite instructions
-        if (responseText.startsWith('```')) {
-            responseText = responseText.replace(/^```json\n?/, '').replace(/```$/, '').trim();
+        // Robust JSON extraction: Find the first '{' and last '}'
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            throw new Error('No JSON object found in AI response');
         }
 
-        const data = JSON.parse(responseText);
+        const data = JSON.parse(jsonMatch[0]);
 
         // Validation
         if (!data.vehicle_registration || data.amount == null || !data.description) {

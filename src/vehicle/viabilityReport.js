@@ -78,8 +78,8 @@ Your response must:
         console.log(`[${new Date().toISOString()}] 🤖 Calling Claude AI for viability analysis...`);
 
         const message = await client.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 500,
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
             temperature: 0.3,
             messages: [
                 { role: 'user', content: userPrompt }
