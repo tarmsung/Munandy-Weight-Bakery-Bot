@@ -10,6 +10,7 @@ const { handleRouteMessage } = require('../vehicle/routeFlow');
 const { handleEditMessage } = require('../vehicle/editFlow');
 const { getAllSupervisors } = require('../db/supervisors');
 const { parseExpenseMessage } = require('../vehicle/expenseParser');
+const { getVehicle: checkVehicleExists } = require('../db/vehicles');
 const { saveVehicleExpense } = require('../db/expenses');
 const { sendEndOfDayReport, runDailyFleetReport, runMonthlyViabilityReport } = require('../scheduler');
 
@@ -115,6 +116,15 @@ async function handleMessage(sock, msg) {
             if (parserResult.success && parserResult.data) {
                 const data = parserResult.data;
                 try {
+                    // Check if vehicle exists in the DB before saving
+                    const dbVehicle = await checkVehicleExists(data.vehicle_registration);
+                    if (!dbVehicle) {
+                        await sock.sendMessage(jid, { 
+                            text: `❌ Vehicle Registration *${data.vehicle_registration}* was not found in our database. Please check for typos or ensure the vehicle is registered.` 
+                        }, { quoted: msg });
+                        return;
+                    }
+
                     await saveVehicleExpense({
                         vehicle_registration: data.vehicle_registration,
                         amount: data.amount,

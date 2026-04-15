@@ -263,6 +263,22 @@ async function deleteVehicle(registration) {
     }
 }
 
+async function getVehicle(registration) {
+    try {
+        const { data, error } = await supabase
+            .from('vehicles')
+            .select('*')
+            .eq('registration', registration)
+            .single();
+
+        if (error) return null;
+        return data;
+    } catch (err) {
+        console.error(`Error fetching vehicle ${registration}:`, err);
+        throw err;
+    }
+}
+
 module.exports = {
     lookupDriverAndVehicle,
     saveInspectionReport,
@@ -276,5 +292,6 @@ module.exports = {
     getAllDrivers,
     addVehicle,
     updateVehicle,
-    deleteVehicle
+    deleteVehicle,
+    getVehicle
 };
