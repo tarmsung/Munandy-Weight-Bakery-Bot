@@ -9,7 +9,7 @@ const { startVan, handleVanStep } = require('../vehicle/vanHandler');
 const { handleRouteMessage } = require('../vehicle/routeFlow');
 const { handleEditMessage } = require('../vehicle/editFlow');
 const { getAllSupervisors } = require('../db/supervisors');
-const { extractExpenseData } = require('../vehicle/expenseExtraction');
+const { parseExpenseMessage } = require('../vehicle/expenseParser');
 const { saveVehicleExpense } = require('../db/expenses');
 const { sendEndOfDayReport, runDailyFleetReport, runMonthlyViabilityReport } = require('../scheduler');
 
@@ -110,9 +110,10 @@ async function handleMessage(sock, msg) {
 
         // We only process if it starts with "Expense" or is a specific bot command
         if (isExpenseTrigger) {
-            await sock.sendMessage(jid, { text: `⏳ Processing expense data...` }, { quoted: msg });
-            const data = await extractExpenseData(text);
-            if (data && data.vehicle_registration && data.amount != null) {
+            const parserResult = parseExpenseMessage(text);
+            
+            if (parserResult.success && parserResult.data) {
+                const data = parserResult.data;
                 try {
                     await saveVehicleExpense({
                         vehicle_registration: data.vehicle_registration,
@@ -122,13 +123,14 @@ async function handleMessage(sock, msg) {
                         reporter_jid: sender
                     });
                     await sock.sendMessage(jid, { 
-                        text: `✅ Logged expense for *${data.vehicle_registration}* ($${data.amount})\nDescription: ${data.description}`
+                        text: `✅ Logged expense for *${data.vehicle_registration}* ($${data.amount.toFixed(2)})\nDescription: ${data.description}`
                     }, { quoted: msg });
                 } catch (e) {
                     await sock.sendMessage(jid, { text: `❌ Failed to save expense to database.` }, { quoted: msg });
                 }
             } else {
-                await sock.sendMessage(jid, { text: `❌ Could not extract the expense details. Please ensure the vehicle, exact amount, and description are clear.` }, { quoted: msg });
+                // If the parse fails, send back the specific descriptive error
+                await sock.sendMessage(jid, { text: parserResult.error }, { quoted: msg });
             }
             return; // consumed
         }
