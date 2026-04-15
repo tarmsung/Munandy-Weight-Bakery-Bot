@@ -7,6 +7,7 @@ const { generateImageReport } = require('./reports/imageGenerator');
 const { generateAIAnalysis } = require('./reports/aiAnalyzer');
 const { getSocket } = require('./state');
 const { initDailyFleetReportCron, runDailyFleetReport } = require('./vehicle/dailyReport');
+const { generateMonthlyViabilityReport } = require('./vehicle/viabilityReport');
 
 // Folder to archive generated PDFs locally
 const REPORTS_DIR = path.join(__dirname, '..', 'reports');
@@ -207,6 +208,47 @@ async function checkMorningSubmissions() {
     }
 }
 
+async function runMonthlyViabilityReport(testDate = null) {
+    const sock = getSocket();
+    if (!sock) {
+        console.warn('⚠️  No active socket — skipping viability report.');
+        return;
+    }
+
+    const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+    const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
+
+    if (adminNums.length === 0) {
+        console.warn('⚠️  ADMIN_NUMBERS not set in .env — skipping viability report.');
+        return;
+    }
+
+    // Determine the month and year to run for. 
+    // Usually, on the 1st of the month, we want to run for the *previous* month.
+    let dateToUse = testDate || new Date();
+    // If it's the 1st of the month, the report should analyze the past month
+    if (!testDate && dateToUse.getDate() <= 5) {
+        dateToUse = new Date(dateToUse.getFullYear(), dateToUse.getMonth() - 1, 15);
+    }
+    const month = dateToUse.getMonth() + 1; // 1-12
+    const year = dateToUse.getFullYear();
+
+    try {
+        const reportText = await generateMonthlyViabilityReport(month, year);
+        for (const num of adminNums) {
+            const jid = `${num}@s.whatsapp.net`;
+            await sock.sendMessage(jid, { text: reportText });
+            console.log(`📊 Sent monthly viability report to admin ${num}`);
+        }
+    } catch (err) {
+        console.error('❌ Failed to run monthly viability report:', err.message);
+        for (const num of adminNums) {
+            const jid = `${num}@s.whatsapp.net`;
+            await sock.sendMessage(jid, { text: `❌ Failed to generate Monthly Viability Report: ${err.message}` });
+        }
+    }
+}
+
 function startScheduler() {
     // End-of-Day Weight Report: 4:00 PM daily to admins
     const cronExpr = '0 16 * * *';
@@ -238,6 +280,20 @@ function startScheduler() {
 
     // ── Daily Fleet Report: Cron job for automated fleet status ─────────────
     initDailyFleetReportCron();
+
+    // ── Monthly Viability Report: 1st of every month at 9:00 AM ─────────────
+    const viabilityCronExpr = '0 9 1 * *';
+    cron.schedule(
+        viabilityCronExpr,
+        () => {
+            console.log('⏰ Running monthly vehicle viability report...');
+            runMonthlyViabilityReport().catch((err) =>
+                console.error('❌ Monthly viability report error:', err.message)
+            );
+        },
+        { timezone: 'Africa/Johannesburg' }
+    );
+    console.log(`⏰ Scheduler started — Monthly Viability Report at ${viabilityCronExpr} (Africa/Johannesburg)`);
 }
 
-module.exports = { startScheduler, sendEndOfDayReport, sendBranchReport, checkMorningSubmissions, runDailyFleetReport };
+module.exports = { startScheduler, sendEndOfDayReport, sendBranchReport, checkMorningSubmissions, runDailyFleetReport, runMonthlyViabilityReport };

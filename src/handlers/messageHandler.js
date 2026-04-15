@@ -9,8 +9,9 @@ const { startVan, handleVanStep } = require('../vehicle/vanHandler');
 const { handleRouteMessage } = require('../vehicle/routeFlow');
 const { handleEditMessage } = require('../vehicle/editFlow');
 const { getAllSupervisors } = require('../db/supervisors');
-
-const { sendEndOfDayReport, runDailyFleetReport } = require('../scheduler');
+const { extractExpenseData } = require('../vehicle/expenseExtraction');
+const { saveVehicleExpense } = require('../db/expenses');
+const { sendEndOfDayReport, runDailyFleetReport, runMonthlyViabilityReport } = require('../scheduler');
 
 function getMessageText(msg) {
     return (
@@ -43,7 +44,7 @@ async function handleMessage(sock, msg) {
         }
     }
 
-    console.log(`[MSG] Raw Sender: ${sender} | Processed: ${senderNumber} | Text: ${text}`);
+    console.log(`[MSG] JID: ${jid} | Sender: ${senderNumber} | Text: ${text}`);
 
     // ── Authorization Check ────────────────────────────────────────────────────
     // Only allow ADMIN NUMBERS, ADMIN LIDS, or registered SUPERVISORS to talk to the bot
@@ -63,6 +64,12 @@ async function handleMessage(sock, msg) {
         } catch (err) {
             console.error('Failed to fetch supervisors for auth check:', err.message);
         }
+    }
+
+    const expenseGroupJid = process.env.EXPENSE_GROUP_JID;
+    if (expenseGroupJid && jid === expenseGroupJid) {
+        // Members of the authorized expense group can post expenses
+        isAuthorized = true;
     }
 
     const cmdRaw = text.toLowerCase();
@@ -95,6 +102,33 @@ async function handleMessage(sock, msg) {
     }
 
     const cmd = text.toLowerCase();
+
+    // ── Expense Interception ───────────────────────────────────────────────────
+    if (expenseGroupJid && jid === expenseGroupJid) {
+        if (cmdRaw.includes('expense') || cmdRaw.includes('exepnse')) {
+            await sock.sendMessage(jid, { text: `⏳ Processing expense data...` }, { quoted: msg });
+            const data = await extractExpenseData(text);
+            if (data && data.vehicle_registration && data.amount != null) {
+                try {
+                    await saveVehicleExpense({
+                        vehicle_registration: data.vehicle_registration,
+                        amount: data.amount,
+                        description: data.description,
+                        source_message: text,
+                        reporter_jid: sender
+                    });
+                    await sock.sendMessage(jid, { 
+                        text: `✅ Logged expense for *${data.vehicle_registration}* ($${data.amount})\nDescription: ${data.description}`
+                    }, { quoted: msg });
+                } catch (e) {
+                    await sock.sendMessage(jid, { text: `❌ Failed to save expense to database.` }, { quoted: msg });
+                }
+            } else {
+                await sock.sendMessage(jid, { text: `❌ Could not extract the expense details. Please ensure the vehicle, exact amount, and description are clear.` }, { quoted: msg });
+            }
+            return; // consumed
+        }
+    }
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
     if (['cancel', 'weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
@@ -169,6 +203,23 @@ async function handleMessage(sock, msg) {
                 console.error('[!testfleet] Error:', err);
                 await sock.sendMessage(jid, { text: `❌ Failed to generate fleet report: ${err.message}` });
             }
+            return;
+        }
+
+        if (cmd === '!testviability') {
+            await sock.sendMessage(jid, { text: `⏳ Generating monthly vehicle viability report... Please wait a few seconds.` });
+            try {
+                await runMonthlyViabilityReport();
+                await sock.sendMessage(jid, { text: `✅ Viability report triggered.` });
+            } catch (err) {
+                console.error('[!testviability] Error:', err);
+                await sock.sendMessage(jid, { text: `❌ Failed to generate viability report: ${err.message}` });
+            }
+            return;
+        }
+
+        if (cmd === '!getjid') {
+            await sock.sendMessage(jid, { text: `📍 The JID for this chat is: *${jid}*` }, { quoted: msg });
             return;
         }
     }
