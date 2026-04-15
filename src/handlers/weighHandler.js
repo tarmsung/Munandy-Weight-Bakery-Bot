@@ -157,47 +157,8 @@ async function handleWeighStep(sock, msg, text, jid) {
             }
 
             const allSamples = parts;
-            const avg = allSamples.reduce((a, b) => a + b, 0) / 4;
-            const avgRounded = Math.round(avg);
-            const { product } = session;
-            const status = calcStatus(avg, product.min_weight, product.max_weight);
+            setSession(jid, { ...session, step: 'FINISH_TYPE', samples: allSamples });
 
-            // Variance = how far outside the range (0 if optimal)
-            let variance = 0;
-            if (status === 'Overweight') variance = parseFloat((avg - product.max_weight).toFixed(1));
-            if (status === 'Underweight') variance = parseFloat((avg - product.min_weight).toFixed(1));
-            const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
-
-            setSession(jid, { ...session, step: 'QUANTITY', samples: allSamples, average: avg, avgRounded, status, variance });
-
-            await reply(
-                `📊 *Calculation Result*\n\n` +
-                `Product: *${product.product_name}*\n` +
-                `Samples: ${allSamples.join(', ')}\n` +
-                `Average: *${avgRounded}g*\n` +
-                `Target:  ${product.min_weight}g – ${product.max_weight}g\n` +
-                `Variance: *${varianceStr}*\n\n` +
-                `Status: ${statusEmoji(status)} *${status}*\n\n` +
-                `━━━━━━━━━━━━━━━━━━\n` +
-                `How many *${product.product_name}* were produced today?\n` +
-                `_(Enter quantity or type *skip*)_`
-            );
-            return true;
-        }
-
-        // ── Step 6: Quantity → ask finish type ───────────────────────────────────
-        case 'QUANTITY': {
-            let quantity = null;
-            if (input.toLowerCase() !== 'skip') {
-                quantity = parseInt(input, 10);
-                if (isNaN(quantity) || quantity < 0) {
-                    await reply(`❌ Please enter a valid quantity (e.g. *450*) or type *skip*.`);
-                    return true;
-                }
-            }
-
-            // Store quantity and move to finish type selection
-            setSession(jid, { ...session, step: 'FINISH_TYPE', quantity });
             await reply(
                 `🍰 *How were the ${session.product.product_name} finished?*\n\n` +
                 `1️⃣ Creamed\n` +
@@ -208,7 +169,7 @@ async function handleWeighStep(sock, msg, text, jid) {
             return true;
         }
 
-        // ── Step 6.5: Finish type → save to Supabase ─────────────────────────────
+        // ── Step 3: Finish type → calculate actuals ─────────────────────────────
         case 'FINISH_TYPE': {
             let finishType = null;
             if (input === '1') finishType = 'Creamed';
@@ -219,7 +180,63 @@ async function handleWeighStep(sock, msg, text, jid) {
                 return true;
             }
 
-            const { product, samples, average, avgRounded, status, variance, quantity, senderNumber, branch } = session;
+            const { product, samples } = session;
+            const rawAvg = samples.reduce((a, b) => a + b, 0) / 4;
+            const rawAvgRounded = Math.round(rawAvg);
+
+            let effectiveAvg = rawAvg;
+            if (finishType === 'Creamed' || finishType === 'Iced') {
+                effectiveAvg -= 20;
+            }
+            const avgRounded = Math.round(effectiveAvg);
+            const status = calcStatus(effectiveAvg, product.min_weight, product.max_weight);
+
+            // Variance = how far outside the range (0 if optimal)
+            let variance = 0;
+            if (status === 'Overweight') variance = parseFloat((effectiveAvg - product.max_weight).toFixed(1));
+            if (status === 'Underweight') variance = parseFloat((effectiveAvg - product.min_weight).toFixed(1));
+            const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
+
+            setSession(jid, { ...session, step: 'QUANTITY', finishType, rawAverage: rawAvg, average: effectiveAvg, avgRounded, status, variance });
+
+            let calcMsg = `📊 *Calculation Result*\n\n`;
+            if (finishType) {
+                calcMsg += `Product: *${product.product_name} (${finishType})*\n`;
+            } else {
+                calcMsg += `Product: *${product.product_name}*\n`;
+            }
+
+            calcMsg += `Samples: ${samples.join(', ')}\n`;
+            if (finishType) {
+                calcMsg += `Raw Average: ${rawAvgRounded}g\n`;
+                calcMsg += `Adjusted Average: *${avgRounded}g* (-20g for ${finishType})\n`;
+            } else {
+                calcMsg += `Average: *${avgRounded}g*\n`;
+            }
+
+            calcMsg += `Target:  ${product.min_weight}g – ${product.max_weight}g\n` +
+                `Variance: *${varianceStr}*\n\n` +
+                `Status: ${statusEmoji(status)} *${status}*\n\n` +
+                `━━━━━━━━━━━━━━━━━━\n` +
+                `How many *${product.product_name}* were produced today?\n` +
+                `_(Enter quantity or type *skip*)_`;
+
+            await reply(calcMsg);
+            return true;
+        }
+
+        // ── Step 4: Quantity → save to Supabase ───────────────────────────────────
+        case 'QUANTITY': {
+            let quantity = null;
+            if (input.toLowerCase() !== 'skip') {
+                quantity = parseInt(input, 10);
+                if (isNaN(quantity) || quantity < 0) {
+                    await reply(`❌ Please enter a valid quantity (e.g. *450*) or type *skip*.`);
+                    return true;
+                }
+            }
+
+            const { product, samples, average, avgRounded, status, variance, finishType, senderNumber, branch } = session;
             const varianceStr = variance > 0 ? `+${variance}g` : variance < 0 ? `${variance}g` : `0g (within range)`;
 
             // Save or Update Supabase
@@ -247,9 +264,12 @@ async function handleWeighStep(sock, msg, text, jid) {
                 });
             }
 
+            let productNameDisplay = product.product_name;
+            if (finishType) productNameDisplay += ` (${finishType})`;
+
             let confirmMsg =
                 `✔️ *${session.isEditing ? 'Record Updated!' : 'Record Saved!'}*\n\n` +
-                `Product:  *${product.product_name}*\n` +
+                `Product:  *${productNameDisplay}*\n` +
                 `Samples:  ${samples.join(', ')}\n` +
                 `Average:  *${avgRounded}g*\n` +
                 `Target:   ${product.min_weight}g – ${product.max_weight}g\n` +
@@ -257,7 +277,6 @@ async function handleWeighStep(sock, msg, text, jid) {
                 `Status:   ${statusEmoji(status)} *${status}*`;
 
             if (quantity !== null) confirmMsg += `\nQuantity: *${quantity} units*`;
-            if (finishType !== null) confirmMsg += `\nFinish:   *${finishType}*`;
 
             confirmMsg += `\n\n` +
                 `Reply *1* to record another batch.\n` +
@@ -283,7 +302,7 @@ async function handleWeighStep(sock, msg, text, jid) {
             }
 
             // Transition to POST_SAVE
-            setSession(jid, { ...session, step: 'POST_SAVE', recordId: savedRecord.id, finishType });
+            setSession(jid, { ...session, step: 'POST_SAVE', recordId: savedRecord.id });
             await reply(confirmMsg);
             return true;
         }
