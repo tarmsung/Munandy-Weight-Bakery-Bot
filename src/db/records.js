@@ -131,5 +131,36 @@ async function updateRecord(id, { samples, average, quantity, status, variance, 
     return data;
 }
 
-module.exports = { saveRecord, deleteRecord, getTodayRecords, getRecordsByDate, updateRecord };
+/**
+ * Fetch all weight records for a specific month (1-12) and year.
+ */
+async function getMonthlyRecords(month, year) {
+    const startDate = new Date(Date.UTC(year, month - 1, 1));
+    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+    const { data, error } = await supabase
+        .from('weight_records')
+        .select(`
+      *,
+      products (
+        product_name,
+        min_weight,
+        max_weight
+      )
+    `)
+        .gte('recorded_at', startDate.toISOString())
+        .lte('recorded_at', endDate.toISOString())
+        .order('recorded_at', { ascending: true });
+
+    if (error) throw new Error(`getMonthlyRecords: ${error.message}`);
+
+    return (data || []).map((r) => ({
+        ...r,
+        product_name: r.products?.product_name,
+        min_weight: r.products?.min_weight,
+        max_weight: r.products?.max_weight,
+    }));
+}
+
+module.exports = { saveRecord, deleteRecord, getTodayRecords, getRecordsByDate, updateRecord, getMonthlyRecords };
 

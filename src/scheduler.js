@@ -8,6 +8,9 @@ const { generateAIAnalysis } = require('./reports/aiAnalyzer');
 const { getSocket } = require('./state');
 const { initDailyFleetReportCron, runDailyFleetReport } = require('./vehicle/dailyReport');
 const { generateMonthlyViabilityReport } = require('./vehicle/viabilityReport');
+const { getMonthlyRecords } = require('./db/records');
+const { analyzeMonthlyWeights } = require('./reports/monthlyWeightAnalyzer');
+const { generateMonthlyWeightPDF } = require('./reports/monthlyWeightPdfGenerator');
 
 // Folder to archive generated PDFs locally
 const REPORTS_DIR = path.join(__dirname, '..', 'reports');
@@ -249,6 +252,65 @@ async function runMonthlyViabilityReport(testDate = null) {
     }
 }
 
+async function runMonthlyWeightAnalysisReport(testDate = null) {
+    const sock = getSocket();
+    if (!sock) {
+        console.warn('⚠️  No active socket — skipping monthly weight analysis.');
+        return;
+    }
+
+    const groupId = process.env.MONTHLY_WEIGHT_REPORT_GROUP_ID;
+    if (!groupId) {
+        console.warn('⚠️  MONTHLY_WEIGHT_REPORT_GROUP_ID not set in .env — skipping report.');
+        return;
+    }
+
+    // Determine target month/year (last month if run in first few days of the month)
+    let dateToUse = testDate || new Date();
+    if (!testDate && dateToUse.getDate() <= 5) {
+        dateToUse = new Date(dateToUse.getFullYear(), dateToUse.getMonth() - 1, 15);
+    }
+    const month = dateToUse.getMonth() + 1;
+    const year = dateToUse.getFullYear();
+    const monthLabel = dateToUse.toLocaleDateString('en-ZA', { month: 'long', year: 'numeric' });
+
+    try {
+        console.log(`📊 Generating Monthly AI Weight Analysis for ${monthLabel}...`);
+        
+        const records = await getMonthlyRecords(month, year);
+        if (records.length === 0) {
+            await sock.sendMessage(groupId, { 
+                text: `📭 *Monthly Weight Analysis (${monthLabel})*\n\nNo weight records were found for this period.` 
+            });
+            return;
+        }
+
+        const analysisResults = await analyzeMonthlyWeights(records, monthLabel);
+        const pdfBuffer = await generateMonthlyWeightPDF(analysisResults, monthLabel);
+
+        const fileName = `Munandy_Weight_Analysis_${monthLabel.replace(' ', '_')}.pdf`;
+
+        await sock.sendMessage(groupId, {
+            document: pdfBuffer,
+            mimetype: 'application/pdf',
+            fileName: fileName,
+            caption: `📋 *Monthly AI weight Analysis Report: ${monthLabel}*\n\nAttached is the comprehensive performance analysis for all branches.`,
+        });
+
+        console.log(`✅ Monthly weight analysis PDF sent to group: ${groupId}`);
+
+    } catch (err) {
+        console.error('❌ Failed to run monthly weight analysis:', err.message);
+        const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+        const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
+        for (const num of adminNums) {
+            await sock.sendMessage(`${num}@s.whatsapp.net`, { 
+                text: `❌ Failed to generate Monthly Weight Analysis: ${err.message}` 
+            });
+        }
+    }
+}
+
 function startScheduler() {
     // End-of-Day Weight Report: 4:00 PM daily to admins
     const cronExpr = '0 16 * * *';
@@ -294,6 +356,28 @@ function startScheduler() {
         { timezone: 'Africa/Johannesburg' }
     );
     console.log(`⏰ Scheduler started — Monthly Viability Report at ${viabilityCronExpr} (Africa/Johannesburg)`);
+
+    // ── Monthly AI Weight Analysis: 1st of every month at 9:05 AM ─────────────
+    const weightAnalysisCronExpr = '5 9 1 * *';
+    cron.schedule(
+        weightAnalysisCronExpr,
+        () => {
+            console.log('⏰ Running monthly AI weight analysis report...');
+            runMonthlyWeightAnalysisReport().catch((err) =>
+                console.error('❌ Monthly weight analysis report error:', err.message)
+            );
+        },
+        { timezone: 'Africa/Johannesburg' }
+    );
+    console.log(`⏰ Scheduler started — Monthly Weight Analysis at ${weightAnalysisCronExpr} (Africa/Johannesburg)`);
 }
 
-module.exports = { startScheduler, sendEndOfDayReport, sendBranchReport, checkMorningSubmissions, runDailyFleetReport, runMonthlyViabilityReport };
+module.exports = { 
+    startScheduler, 
+    sendEndOfDayReport, 
+    sendBranchReport, 
+    checkMorningSubmissions, 
+    runDailyFleetReport, 
+    runMonthlyViabilityReport,
+    runMonthlyWeightAnalysisReport
+};
