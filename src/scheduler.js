@@ -259,9 +259,11 @@ async function runMonthlyWeightAnalysisReport(testDate = null) {
         return;
     }
 
-    const groupId = process.env.MONTHLY_WEIGHT_REPORT_GROUP_ID;
-    if (!groupId) {
-        console.warn('⚠️  MONTHLY_WEIGHT_REPORT_GROUP_ID not set in .env — skipping report.');
+    const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+    const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
+
+    if (adminNums.length === 0) {
+        console.warn('⚠️  ADMIN_NUMBERS not set in .env — skipping monthly weight analysis report.');
         return;
     }
 
@@ -279,9 +281,11 @@ async function runMonthlyWeightAnalysisReport(testDate = null) {
         
         const records = await getMonthlyRecords(month, year);
         if (records.length === 0) {
-            await sock.sendMessage(groupId, { 
-                text: `📭 *Monthly Weight Analysis (${monthLabel})*\n\nNo weight records were found for this period.` 
-            });
+            for (const num of adminNums) {
+                await sock.sendMessage(`${num}@s.whatsapp.net`, { 
+                    text: `📭 *Monthly Weight Analysis (${monthLabel})*\n\nNo weight records were found for this period.` 
+                });
+            }
             return;
         }
 
@@ -290,14 +294,15 @@ async function runMonthlyWeightAnalysisReport(testDate = null) {
 
         const fileName = `Munandy_Weight_Analysis_${monthLabel.replace(' ', '_')}.pdf`;
 
-        await sock.sendMessage(groupId, {
-            document: pdfBuffer,
-            mimetype: 'application/pdf',
-            fileName: fileName,
-            caption: `📋 *Monthly AI weight Analysis Report: ${monthLabel}*\n\nAttached is the comprehensive performance analysis for all branches.`,
-        });
-
-        console.log(`✅ Monthly weight analysis PDF sent to group: ${groupId}`);
+        for (const num of adminNums) {
+            await sock.sendMessage(`${num}@s.whatsapp.net`, {
+                document: pdfBuffer,
+                mimetype: 'application/pdf',
+                fileName: fileName,
+                caption: `📋 *Monthly AI weight Analysis Report: ${monthLabel}*\n\nAttached is the comprehensive performance analysis for all branches.`,
+            });
+            console.log(`✅ Monthly weight analysis PDF sent to admin: ${num}`);
+        }
 
     } catch (err) {
         console.error('❌ Failed to run monthly weight analysis:', err.message);
