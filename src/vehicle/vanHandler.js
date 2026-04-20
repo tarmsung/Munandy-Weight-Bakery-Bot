@@ -1,12 +1,12 @@
-const { lookupDriverAndVehicle, saveInspectionReport, updateReport, getAllDrivers } = require('../db/vehicles');
+const { lookupVehicle, saveInspectionReport, updateReport, getAllDrivers, getDriverById } = require('../db/vehicles');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 const checklistItems = require('./checklist');
 const reportHelper = require('./report');
 
 /** Start a new /van session */
 async function startVan(sock, jid) {
-    setSession(jid, { flowType: 'van', step: 'AWAITING_VEHICLE_REG' });
-    await sock.sendMessage(jid, { text: "Welcome to the Vehicle Check System. Please enter your Driver ID." });
+    setSession(jid, { flowType: 'van', step: 'AWAITING_INSPECTOR_ID' });
+    await sock.sendMessage(jid, { text: "Welcome to the Vehicle Inspection System. You are the Inspector \u2014 please enter your ID." });
 }
 
 /** Helper to orchestrate checklist flow */
@@ -40,11 +40,12 @@ async function finalizeSubmission(sock, jid, session) {
             });
             // Regenerate image with Edited label
             await reportHelper.sendReportToGroup(sock, { ...session, isEdited: true });
-            await sock.sendMessage(jid, { text: "Report updated successfully. ✅" });
+            await sock.sendMessage(jid, { text: "Report updated successfully. \u2705" });
         } else {
             // INSERT
             const reportData = {
                 driverId:     session.driverID,
+                inspectorId:  session.inspectorId,
                 vehicleReg:   session.vehicleReg,
                 checklist:    session.checklistResults,
                 comments:     session.comments || '',
@@ -52,7 +53,7 @@ async function finalizeSubmission(sock, jid, session) {
             };
             await saveInspectionReport(reportData);
             await reportHelper.sendReportToGroup(sock, session);
-            await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! 🚗" });
+            await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! \ud83d\ude97" });
         }
     } catch (err) {
         console.error("Failed to save/update report:", err);
@@ -73,37 +74,45 @@ async function handleVanStep(sock, msg, text, jid) {
     const textLower = input.toLowerCase();
 
     switch (session.step) {
-        case 'AWAITING_VEHICLE_REG':
-            setSession(jid, { ...session, driverID: input, step: 'CONFIRM_DETAILS' });
-            await sock.sendMessage(jid, { text: "Please enter your vehicle registration number." });
-            return true;
-
-        case 'CONFIRM_DETAILS': {
-            setSession(jid, { ...session, vehicleReg: input });
-            
-            const lookupResult = await lookupDriverAndVehicle(session.driverID, input);
-            
-            if (!lookupResult) {
-                await sock.sendMessage(jid, { text: "Sorry, we could not find a matching driver and vehicle. Please try again." });
-                clearSession(jid);
-                // Restart optionally
-                setSession(jid, { flowType: 'van', step: 'AWAITING_VEHICLE_REG' });
-                await sock.sendMessage(jid, { text: "Welcome to the Vehicle Check System. Please enter your Driver ID." });
+        case 'AWAITING_INSPECTOR_ID': {
+            const inspector = await getDriverById(input);
+            if (!inspector) {
+                await sock.sendMessage(jid, { text: "Sorry, we could not find anyone with that ID. Please enter your ID again." });
             } else {
-                // Store DB info to session
                 setSession(jid, {
                     ...session,
-                    vehicleReg: input,
-                    driverName: lookupResult.driver_name,
-                    branch: lookupResult.branch,
-                    vehicleMake: lookupResult.vehicle_make,
-                    vehicleModel: lookupResult.vehicle_model,
+                    inspectorId: input,
+                    inspectorName: inspector.name,
+                    inspectorBranch: inspector.branch,
+                    step: 'AWAITING_VEHICLE_REG'
+                });
+                await sock.sendMessage(jid, { text: `Welcome, ${inspector.name}. Please enter the vehicle registration number.` });
+            }
+            return true;
+        }
+
+        case 'AWAITING_VEHICLE_REG': {
+            const vehicleReg = input.toUpperCase();
+            const vehicle = await lookupVehicle(vehicleReg);
+
+            if (!vehicle) {
+                await sock.sendMessage(jid, { text: "Sorry, we could not find that vehicle. Please enter the registration number again." });
+            } else {
+                setSession(jid, {
+                    ...session,
+                    vehicleReg: vehicle.registration,
+                    vehicleMake: vehicle.make,
+                    vehicleModel: vehicle.model,
                     step: 'AWAITING_CONFIRMATION',
                     checklistIndex: 0,
                     checklistResults: []
                 });
-                
-                const confirmMsg = `Vehicle Details: ${lookupResult.vehicle_make} ${lookupResult.vehicle_model}\nDriver Details: ${lookupResult.driver_name} (${lookupResult.branch})\nReply *Y* to confirm or *N* to cancel.`;
+
+                const updatedSession = getSession(jid);
+                const confirmMsg =
+                    `Inspector: ${updatedSession.inspectorName} (${updatedSession.inspectorBranch})\n` +
+                    `Vehicle: ${vehicle.make} ${vehicle.model} (${vehicle.registration})\n` +
+                    `Reply *Y* to confirm or *N* to cancel.`;
                 await sock.sendMessage(jid, { text: confirmMsg });
             }
             return true;
@@ -221,7 +230,7 @@ async function handleVanStep(sock, msg, text, jid) {
 
             const listLines = drivers.map((d, i) => `${i + 1}. ${d.name} (${d.branch})`).join('\n');
             await sock.sendMessage(jid, {
-                text: `👤 *Who is driving today?*\nReply with the number next to the driver's name:\n\n${listLines}`
+                text: `\ud83d\udc64 *Who is driving today?*\nReply with the number next to the driver's name:\n\n${listLines}`
             });
             return true;
         }
@@ -249,7 +258,7 @@ async function handleVanStep(sock, msg, text, jid) {
             setSession(jid, finalSession);
 
             await sock.sendMessage(jid, {
-                text: `✅ Driver set to *${selectedDriver.name}*. Saving report...`
+                text: `\u2705 Driver set to *${selectedDriver.name}*. Saving report...`
             });
 
             await finalizeSubmission(sock, jid, finalSession);

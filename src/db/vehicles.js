@@ -38,12 +38,32 @@ async function lookupDriverAndVehicle(driverId, vehicleReg) {
     }
 }
 
-async function saveInspectionReport({ driverId, vehicleReg, checklist, comments, reporterJid }) {
+async function lookupVehicle(vehicleReg) {
+    try {
+        const { data: vehicle, error } = await supabase
+            .from('vehicles')
+            .select('registration, make, model')
+            .eq('registration', vehicleReg)
+            .single();
+
+        if (error || !vehicle) {
+            console.log(`Vehicle not found: [${vehicleReg}]`);
+            return null;
+        }
+        return vehicle;
+    } catch (err) {
+        console.error('Error in lookupVehicle:', err);
+        throw err;
+    }
+}
+
+async function saveInspectionReport({ driverId, inspectorId, vehicleReg, checklist, comments, reporterJid }) {
     try {
         const { data, error } = await supabase
             .from('inspection_reports')
             .insert([{
                 driver_id:            driverId,
+                inspector_id:         inspectorId || null,
                 vehicle_registration: vehicleReg,
                 submitted_at:         new Date().toISOString(),
                 checklist:            checklist,
@@ -136,6 +156,22 @@ async function updateReport(id, type, updateData) {
         return data;
     } catch (err) {
         console.error(`Error updating ${type} report ${id}:`, err);
+        throw err;
+    }
+}
+
+async function getDriverById(id) {
+    try {
+        const { data, error } = await supabase
+            .from('drivers')
+            .select('id, name, branch')
+            .eq('id', id)
+            .single();
+
+        if (error || !data) return null;
+        return data;
+    } catch (err) {
+        console.error('Error in getDriverById:', err);
         throw err;
     }
 }
@@ -281,11 +317,13 @@ async function getVehicle(registration) {
 
 module.exports = {
     lookupDriverAndVehicle,
+    lookupVehicle,
     saveInspectionReport,
     getAllActiveVehicles,
     getRecentUserReports,
     getReportById,
     updateReport,
+    getDriverById,
     addDriver,
     updateDriver,
     deleteDriver,

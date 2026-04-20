@@ -13,7 +13,9 @@ function buildReportHTML(sessionData) {
         vehicleReg,
         checklistResults,
         comments,
-        isEdited
+        isEdited,
+        inspectorName,
+        inspectorBranch
     } = sessionData;
 
     const editBanner = isEdited ? `<div class="edit-banner">⚠️ CORRECTED REPORT</div>` : '';
@@ -148,12 +150,16 @@ function buildReportHTML(sessionData) {
           
           <div class="info-grid">
             <div class="info-box">
-              <div class="info-label">Driver</div>
-              <div class="info-value">${driverName} (${branch})</div>
+              <div class="info-label">Inspector</div>
+              <div class="info-value">${inspectorName} (${inspectorBranch})</div>
             </div>
             <div class="info-box">
               <div class="info-label">Vehicle</div>
               <div class="info-value">${vehicleMake} ${vehicleModel} (${vehicleReg})</div>
+            </div>
+            <div class="info-box">
+              <div class="info-label">Driver</div>
+              <div class="info-value">${driverName} (${branch})</div>
             </div>
             <div class="info-box">
               <div class="info-label">Date & Time</div>
@@ -215,7 +221,7 @@ async function sendReportToGroup(sock, sessionData) {
         console.log('Sending report image to group...');
         await sock.sendMessage(notifyJid, { 
             image: imageBuffer,
-            caption: `Vehicle Inspection Report for ${sessionData.vehicleReg} by ${sessionData.driverName}`
+            caption: `Vehicle Inspection Report for ${sessionData.vehicleReg} by ${sessionData.inspectorName}`
         });
         console.log('Report image successfully sent to group.');
     } catch (err) {
@@ -224,8 +230,8 @@ async function sendReportToGroup(sock, sessionData) {
         // Fallback to text if image fails
         let fallbackText = `🚐 *Vehicle Inspection Report*\n` +
             `*Vehicle:* ${sessionData.vehicleMake} ${sessionData.vehicleModel} ([${sessionData.vehicleReg}])\n` +
-            `*Driver:* ${sessionData.driverName}\n` +
-            `*Branch:* ${sessionData.branch}\n` +
+            `*Inspector:* ${sessionData.inspectorName} (${sessionData.inspectorBranch})\n` +
+            `*Driver:* ${sessionData.driverName} (${sessionData.branch})\n` +
             `*Status:* ${sessionData.checklistResults.filter(r => r.status === 'OK').length} OK, ${sessionData.checklistResults.filter(r => r.status !== 'OK').length} Faults\n`;
         
         const faults = sessionData.checklistResults.filter(r => r.status !== 'OK');
