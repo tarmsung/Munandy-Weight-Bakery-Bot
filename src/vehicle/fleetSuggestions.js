@@ -78,7 +78,7 @@ function getFleetSuggestions(reportData) {
 
     return sections
         .slice(0, 6)
-        .map((s, i) => `${i + 1}. ${s}`)
+        .map(s => `\u2022 ${s}`)
         .join('\n\n');
 }
 

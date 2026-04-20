@@ -138,16 +138,16 @@ async function getClaudeAnalysis(reportData) {
 Your job is to analyze the daily fleet inspection report and provide a direct, authoritative management analysis.
 
 Your response must:
-- Be formatted as exactly 5–6 numbered paragraphs.
+- Be formatted as 5–6 clear bullet points (using the • character).
 - Use a direct and authoritative tone.
-- Do NOT use bullet points — use numbered paragraphs only.
+- Use bullet points instead of numbered paragraphs.
 - Focus strictly on:
   1. Which vehicles must be grounded immediately due to safety risks.
   2. Which faults are overdue for repair or showing recurring patterns.
   3. Any safety or legal risks (e.g., expired insurance or missed service).
   4. Recognition for drivers with consistently clean submissions.
 - Keep the total response concise but professional.
-- Do NOT use markdown (no **bold**, no headers) — plain text only, just numbers and sentences.
+- Do NOT use markdown (no **bold**, no headers) — plain text only, just bullets and sentences.
 - Use only the provided data. Do not invent vehicle names, plates, drivers, or issues.`;
 
         const userPrompt = `Analyze today's fleet data and provide your management recommendations:\n\n${fleetContext}`;
