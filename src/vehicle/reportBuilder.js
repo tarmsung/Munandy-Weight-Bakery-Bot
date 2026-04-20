@@ -1,5 +1,5 @@
 /**
- * Assembles the daily fleet report into a WhatsApp-formatted string.
+ * Assembles the daily fleet report into a WhatsApp-formatted string based on a specific template.
  */
 function buildFleetReportMessage(reportData, reportDate) {
     const {
@@ -9,7 +9,8 @@ function buildFleetReportMessage(reportData, reportDate) {
         resolved = [],
         maintenance = [],
         insurance = [],
-        suggestions = ""
+        suggestions = "",
+        wellPerforming = []
     } = reportData;
 
     // Critical items for filtering section 2
@@ -30,6 +31,7 @@ function buildFleetReportMessage(reportData, reportDate) {
         year: 'numeric'
     }).toUpperCase();
 
+    // Template header
     let message = `Hello, I am the Munandy Bakery AI Agent.\n`;
     message += `Here is the vehicle inventory summary for today, *${dateLabel}*:\n\n`;
 
@@ -48,7 +50,7 @@ function buildFleetReportMessage(reportData, reportDate) {
     if (criticalFaults.length === 0) {
         message += `No critical issues today ✅\n`;
     } else {
-        message += criticalFaults.map(f => `*${f.make} ${f.nickname} (${f.registration})* driven by ${f.driver_name}: ${f.description || f.item}`).join('\n') + `\n`;
+        message += criticalFaults.map(f => `${f.make} ${f.nickname} (${f.registration}) driven by ${f.driver_name}: ${f.description || f.item}`).join('\n') + `\n`;
     }
     message += `\n`;
 
@@ -68,17 +70,8 @@ function buildFleetReportMessage(reportData, reportDate) {
     // 4. Other insights (Well-performing vehicles) ✅
     message += `*4. Other insights (Well-performing vehicles) ✅*\n`;
     message += `These vehicles have no major issues reported today.\n`;
-    // Filter vehicles that submitted (not in unfiled) and have no faults at all
-    // Since we only have 'faults' list, we need to cross-ref
-    // This is a bit tricky without the full list of submissions here, 
-    // but we can derive it if we had 'allVehicles' and 'unfiled'.
-    // Let's assume reportData includes allSubmissions for this purpose or we just use what we have.
-    const vehiclesWithFaults = new Set(faults.map(f => f.registration));
-    // We'll need the list of vehicles that DID submit. 
-    // For now, let's use a placeholder if we don't have the full list, 
-    // or better, ensure reportData has 'wellPerforming'.
-    if (reportData.wellPerforming && reportData.wellPerforming.length > 0) {
-        message += reportData.wellPerforming.map(v => `*${v.make} ${v.nickname} (${v.registration})* driven by ${v.driver_name}`).join('\n') + `\n`;
+    if (wellPerforming && wellPerforming.length > 0) {
+        message += wellPerforming.map(v => `${v.make} ${v.nickname} (${v.registration}) driven by ${v.driver_name}`).join('\n') + `\n`;
     } else {
         message += `No fully clear vehicles today.\n`;
     }
@@ -89,7 +82,7 @@ function buildFleetReportMessage(reportData, reportDate) {
     if (resolved.length === 0) {
         message += `No resolved issues today.\n`;
     } else {
-        message += resolved.map(r => `*${r.make} ${r.nickname} (${r.registration}):* ${r.item} now resolved.`).join('\n') + `\n`;
+        message += resolved.map(r => `${r.make} ${r.nickname} (${r.registration}):* ${r.item} now resolved.`).join('\n') + `\n`;
     }
     message += `\n`;
 
