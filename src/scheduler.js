@@ -112,14 +112,14 @@ async function sendEndOfDayReport() {
         console.log(`📊 EOD master report sent as image to ${num}`);
     }
 
-    // Also send to the new Supervisor Reports Group if configured
-    const supervisorGroupId = process.env.SUPERVISOR_REPORTS_GROUP_ID;
-    if (supervisorGroupId) {
-        await sock.sendMessage(supervisorGroupId, { 
+    // Also send to the new Stats Group if configured
+    const statsGroupId = process.env.WEIGHT_REPORTS_GROUP_ID;
+    if (statsGroupId) {
+        await sock.sendMessage(statsGroupId, { 
             image: imageBuffer, 
             caption: summaryText 
         });
-        console.log(`📊 EOD master report sent to Supervisor Group: ${supervisorGroupId}`);
+        console.log(`📊 EOD master report sent to Stats Group: ${statsGroupId}`);
     }
 }
 
@@ -200,40 +200,25 @@ async function checkMorningSubmissions() {
         }
     }
 
-    const adminNumsStr = process.env.ADMIN_NUMBERS || '';
-    const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
-
-    const supervisorGroupId = process.env.SUPERVISOR_REPORTS_GROUP_ID;
+    const statsGroupId = process.env.WEIGHT_REPORTS_GROUP_ID;
 
     if (missingBranches.length > 0) {
         const alertText = `⚠️ *Morning Report Missing*\n\nNo weight records have been submitted for the following branches yet today:\n\n` +
             missingBranches.map(b => `• *${b}*`).join('\n') +
             `\n\n_Please follow up with the supervisors._`;
 
-        // Send to Admins
-        for (const num of adminNums) {
-            await sock.sendMessage(`${num}@s.whatsapp.net`, { text: alertText });
-            console.log(`⏰ Sent morning reminder to admin ${num}`);
-        }
-
-        // Send to Supervisor Group
-        if (supervisorGroupId) {
-            await sock.sendMessage(supervisorGroupId, { text: alertText });
-            console.log(`⏰ Sent morning reminder to Supervisor Group`);
+        // Send to Stats Group
+        if (statsGroupId) {
+            await sock.sendMessage(statsGroupId, { text: alertText });
+            console.log(`⏰ Sent morning reminder to Stats Group`);
         }
     } else {
         const successText = `✅ *Morning Check Complete*\n\nAll branches have submitted their weight records for today.`;
         
-        // Send to Admins
-        for (const num of adminNums) {
-            await sock.sendMessage(`${num}@s.whatsapp.net`, { text: successText });
-            console.log(`⏰ Sent morning success message to admin ${num}`);
-        }
-
-        // Send to Supervisor Group
-        if (supervisorGroupId) {
-            await sock.sendMessage(supervisorGroupId, { text: successText });
-            console.log(`⏰ Sent morning success message to Supervisor Group`);
+        // Send to Stats Group
+        if (statsGroupId) {
+            await sock.sendMessage(statsGroupId, { text: successText });
+            console.log(`⏰ Sent morning success message to Stats Group`);
         }
     }
 }
