@@ -118,9 +118,9 @@ async function runDailyFleetReport(isManual = false) {
         }
 
         // Step 7: Send message with retries
-        const notifyJid = process.env.NOTIFY_GROUP_JID;
+        const notifyJid = process.env.FLEET_REPORT_GROUP_ID || process.env.NOTIFY_GROUP_JID;
         if (!notifyJid) {
-            console.warn(`[${new Date().toISOString()}] ⚠️ NOTIFY_GROUP_JID not set. Cannot send report.`);
+            console.warn(`[${new Date().toISOString()}] ⚠️ FLEET_REPORT_GROUP_ID or NOTIFY_GROUP_JID not set. Cannot send report.`);
             return;
         }
 
