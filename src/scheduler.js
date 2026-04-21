@@ -81,12 +81,12 @@ async function sendEndOfDayReport() {
     });
     const dateStr = new Date().toISOString().split('T')[0];
 
-    // Recipients: only admins get the Master Report now in their DMs
-    const recipients = [...adminNums];
+    // Also send to the new Stats Group if configured
+    const statsGroupId = process.env.WEIGHT_REPORTS_GROUP_ID;
 
     if (records.length === 0) {
-        for (const num of recipients) {
-            await sock.sendMessage(`${num}@s.whatsapp.net`, {
+        if (statsGroupId) {
+            await sock.sendMessage(statsGroupId, {
                 text: `📭 *End-of-Day Report*\n_${dateLabel}_\n\nNo weight records were recorded today.`,
             });
         }
@@ -102,18 +102,6 @@ async function sendEndOfDayReport() {
     const imagePath = path.join(REPORTS_DIR, `report_${dateStr}.png`);
     fs.writeFileSync(imagePath, imageBuffer);
 
-    // Send Master Report to Admins
-    for (const num of recipients) {
-        const jid = `${num}@s.whatsapp.net`;
-        await sock.sendMessage(jid, { 
-            image: imageBuffer, 
-            caption: summaryText 
-        });
-        console.log(`📊 EOD master report sent as image to ${num}`);
-    }
-
-    // Also send to the new Stats Group if configured
-    const statsGroupId = process.env.WEIGHT_REPORTS_GROUP_ID;
     if (statsGroupId) {
         await sock.sendMessage(statsGroupId, { 
             image: imageBuffer, 
