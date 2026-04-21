@@ -152,6 +152,9 @@ async function handleVanStep(sock, msg, text, jid) {
                 if (session.checklistIndex === 0) {
                     const finalSession = {
                         ...session,
+                        driverID: session.driverID || session.inspectorId,
+                        driverName: session.driverName || 'N/A (Not Running)',
+                        branch: session.branch || session.inspectorBranch,
                         checklistResults: results,
                         comments: `[AUTO-SUBMIT: Car not running] ${input}`
                     };
