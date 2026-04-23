@@ -22,14 +22,24 @@ async function startWeigh(sock, jid, senderNumber) {
     const products = await getAllProducts();
     const branch = await getSupervisorBranch(senderNumber) || 'Admin';
 
-    let menu = '📋 *Please select the product you are weighing:*\n\n';
-    products.forEach((p, i) => {
-        menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
-    });
-    menu += '\nReply with the *number* of the product, or type *cancel* to end.';
+    if (branch === 'Admin') {
+        let branchMenu = '🏢 *Admin Mode: Select Branch*\n\n' +
+                         '1️⃣ Harare\n' +
+                         '2️⃣ Mutare\n' +
+                         '3️⃣ Bulawayo\n\n' +
+                         'Reply with the *number* of the branch, or type *cancel* to end.';
+        setSession(jid, { flowType: 'weigh', step: 'ADMIN_SELECT_BRANCH', senderNumber, branch, products, samples: [] });
+        await sock.sendMessage(jid, { text: branchMenu });
+    } else {
+        let menu = '📋 *Please select the product you are weighing:*\n\n';
+        products.forEach((p, i) => {
+            menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
+        });
+        menu += '\nReply with the *number* of the product, or type *cancel* to end.';
 
-    setSession(jid, { flowType: 'weigh', step: 'SELECT_PRODUCT', senderNumber, branch, products, samples: [] });
-    await sock.sendMessage(jid, { text: menu });
+        setSession(jid, { flowType: 'weigh', step: 'SELECT_PRODUCT', senderNumber, branch, products, samples: [] });
+        await sock.sendMessage(jid, { text: menu });
+    }
 }
 
 /**
@@ -48,6 +58,29 @@ async function handleWeighStep(sock, msg, text, jid) {
     console.log(`[DEBUG] handleWeighStep: step=${session.step}, input="${input}"`);
 
     switch (session.step) {
+        // ── Step 0: Admin selects branch ─────────────────────────────────────────
+        case 'ADMIN_SELECT_BRANCH': {
+            let selectedBranch;
+            if (input === '1') selectedBranch = 'Harare';
+            else if (input === '2') selectedBranch = 'Mutare';
+            else if (input === '3') selectedBranch = 'Bulawayo';
+            else {
+                await reply(`❌ Please reply with *1* (Harare), *2* (Mutare), or *3* (Bulawayo).`);
+                return true;
+            }
+
+            session.branch = selectedBranch;
+            setSession(jid, { ...session, step: 'SELECT_PRODUCT' });
+
+            let menu = `✅ *Branch set to ${selectedBranch}*\n\n📋 *Please select the product you are weighing:*\n\n`;
+            session.products.forEach((p, i) => {
+                menu += `${NUMBER_EMOJIS[i]} ${p.product_name}\n`;
+            });
+            menu += '\nReply with the *number* of the product, or type *cancel* to end.';
+            await reply(menu);
+            return true;
+        }
+
         // ── Step 1: Worker picks product ─────────────────────────────────────────
         case 'SELECT_PRODUCT': {
             const num = parseInt(input, 10);

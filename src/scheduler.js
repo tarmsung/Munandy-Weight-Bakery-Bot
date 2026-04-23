@@ -122,7 +122,11 @@ async function sendBranchReport(branchName, flourKg = null) {
     }
 
     const branchKey = Object.keys(process.env).find(k => k.startsWith(branchName.toUpperCase()) && k.endsWith('_GROUP_ID'));
-    const groupId = process.env[branchKey];
+    let groupId = process.env[branchKey];
+
+    if (!groupId && branchName.toLowerCase() === 'admin') {
+        groupId = process.env.WEIGHT_REPORTS_GROUP_ID;
+    }
 
     if (!groupId) {
         console.warn(`⚠️ No group ID configured for branch: ${branchName}`);
