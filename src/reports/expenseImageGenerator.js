@@ -9,6 +9,20 @@ const nodeHtmlToImage = require('node-html-to-image');
  * @returns {Promise<Buffer>}
  */
 async function generateExpenseImageReport(expenses, startDateStr, endDateStr, totalAmount) {
+    // Build rows using string concatenation to avoid nested template literal conflicts
+    const rows = expenses.map(exp => {
+        const dateObj = new Date(exp.expense_date);
+        const displayDate = dateObj.toLocaleDateString('en-GB'); // dd/mm/yyyy
+        return (
+            '<tr>' +
+            '<td class="date-col">' + displayDate + '</td>' +
+            '<td>' + exp.vehicle_registration + '</td>' +
+            '<td>' + exp.description + '</td>' +
+            '<td class="amount-col">$' + Number(exp.amount).toFixed(2) + '</td>' +
+            '</tr>'
+        );
+    }).join('');
+
     const htmlTemplate = `
 <!DOCTYPE html>
 <html>
@@ -120,18 +134,7 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
             </tr>
         </thead>
         <tbody>
-            ${expenses.map(exp => {
-                const dateObj = new Date(exp.expense_date);
-                const displayDate = dateObj.toLocaleDateString('en-GB'); // dd/mm/yyyy
-                return `
-                <tr>
-                    <td class="date-col">${displayDate}</td>
-                    <td>${exp.vehicle_registration}</td>
-                    <td>${exp.description}</td>
-                    <td class="amount-col">$${Number(exp.amount).toFixed(2)}</td>
-                </tr>
-                `;
-            }).join('')}
+            ${rows}
         </tbody>
     </table>
 
@@ -140,7 +143,7 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
     </div>
 </body>
 </html>
-    \`;
+    `;
 
     return await nodeHtmlToImage({
         html: htmlTemplate,
