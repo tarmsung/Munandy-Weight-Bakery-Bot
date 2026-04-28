@@ -15,7 +15,7 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
         const displayDate = dateObj.toLocaleDateString('en-GB'); // dd/mm/yyyy
         const vehicleLabel = exp.branch
             ? exp.vehicle_registration + ' <span class="branch-tag">(' + exp.branch + ')</span>'
-            : exp.vehicle_registration;
+            : exp.vehicle_registration + ' <span class="branch-missing">(Unassigned)</span>';
         return (
             '<tr>' +
             '<td class="date-col">' + displayDate + '</td>' +
@@ -111,6 +111,11 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
         .branch-tag {
             font-size: 11px;
             color: #7f8c8d;
+            font-weight: normal;
+        }
+        .branch-missing {
+            font-size: 11px;
+            color: #e67e22;
             font-weight: normal;
         }
         .footer {
