@@ -129,6 +129,7 @@ async function handleMessage(sock, msg) {
                         vehicle_registration: data.vehicle_registration,
                         amount: data.amount,
                         description: data.description,
+                        branch: data.branch,
                         source_message: text,
                         reporter_jid: sender
                     });

@@ -5,6 +5,9 @@ const { getAllInsuranceStatus, upsertInsurance } = require('../db/insurance');
 const { getVehicleServiceStatus, logServiceCompleted } = require('../db/service');
 const { getAllRoutes, addRoute, updateRoute } = require('../db/routes');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
+const { getRecentExpenses, getExpensesByDateRange } = require('../db/expenses');
+const { runMonthlyViabilityReport } = require('../scheduler');
+const { generateExpenseImageReport } = require('../reports/expenseImageGenerator');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
 
@@ -34,7 +37,8 @@ const ADMIN_TRANSPORT_MENU_TEXT =
     `6️⃣ Service Management\n` +
     `7️⃣ Edit Route\n` +
     `8️⃣ Edit Driver\n` +
-    `9️⃣ Edit Vehicle\n\n` +
+    `9️⃣ Edit Vehicle\n` +
+    `🔟 Expenses\n\n` +
     `_Reply with a number. Type *back* at any step to return to the main menu._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
@@ -240,8 +244,90 @@ async function handleAdminStep(sock, msg, text, jid) {
                     });
                     msg += `\n_Reply with the number of the vehicle to edit, or type *back*._`;
                     await reply(msg);
+                } else if (choice === 10) {
+                    setSession(jid, { ...session, step: 'ADMIN_EXPENSE_START_DATE' });
+                    await reply(
+                        `💰 *Custom Expense Report*\n\n` +
+                        `Welcome! Please enter the *Start Date* for the report in the format *dd/mm/yyyy* (e.g. 01/04/2026).\n\n` +
+                        `_Type *back* to return._`
+                    );
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1–9.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–10.`);
+                }
+                return true;
+            }
+
+            // --- Expense Management ---
+            case 'ADMIN_EXPENSE_START_DATE': {
+                // Validate dd/mm/yyyy
+                const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+                const match = input.match(dateRegex);
+                if (!match) {
+                    await reply(`❌ Invalid format. Please enter the date exactly like *dd/mm/yyyy* (e.g. 01/04/2026).\n\n_Type *back* to return._`);
+                    return true;
+                }
+                // Construct ISO compatible start string (YYYY-MM-DD)
+                const startStr = `${match[3]}-${match[2]}-${match[1]}`;
+                if (isNaN(Date.parse(startStr))) {
+                    await reply(`❌ Invalid date. Please try again.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_EXPENSE_END_DATE', tempStartDateStr: startStr, tempStartDateDisplay: input });
+                await reply(`Start Date: *${input}*\n\nPlease enter the *End Date* in the format *dd/mm/yyyy* (e.g. 30/04/2026):`);
+                return true;
+            }
+
+            case 'ADMIN_EXPENSE_END_DATE': {
+                const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+                const match = input.match(dateRegex);
+                if (!match) {
+                    await reply(`❌ Invalid format. Please enter the date exactly like *dd/mm/yyyy*.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                const endStr = `${match[3]}-${match[2]}-${match[1]}`;
+                if (isNaN(Date.parse(endStr))) {
+                    await reply(`❌ Invalid date. Please try again.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                
+                // Compare dates
+                if (new Date(endStr) < new Date(session.tempStartDateStr)) {
+                     await reply(`❌ End Date cannot be before Start Date. Please enter a valid End Date.\n\n_Type *back* to return._`);
+                     return true;
+                }
+
+                await reply(`⏳ *Fetching expenses for ${session.tempStartDateDisplay} to ${input}...* Please wait.`);
+
+                try {
+                    const expenses = await getExpensesByDateRange(session.tempStartDateStr, endStr);
+                    
+                    if (!expenses || expenses.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `📭 No expenses were found between *${session.tempStartDateDisplay}* and *${input}*.\n\n`);
+                        return true;
+                    }
+
+                    // Calculate total
+                    const totalAmount = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+                    
+                    // Generate Image
+                    const imageBuffer = await generateExpenseImageReport(
+                        expenses,
+                        session.tempStartDateDisplay,
+                        input,
+                        totalAmount
+                    );
+
+                    // Send Image
+                    await sock.sendMessage(jid, {
+                        image: imageBuffer,
+                        caption: `💰 *Vehicle Expense Report*\nFrom: ${session.tempStartDateDisplay}\nTo: ${input}\n\nTotal Expenses: *$${totalAmount.toFixed(2)}*\n\n_Returning to main menu..._`
+                    });
+
+                    // Reset session back to menu silently
+                    setSession(jid, { step: 'ADMIN_MENU', senderNumber: session.senderNumber });
+
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to generate report:*\n${err.message}\n\n`);
                 }
                 return true;
             }

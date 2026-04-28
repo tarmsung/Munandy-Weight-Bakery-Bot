@@ -62,3 +62,7 @@ CREATE TABLE IF NOT EXISTS supervisors (
   branch        TEXT NOT NULL,
   added_at      TIMESTAMPTZ DEFAULT now()
 );
+
+-- 5. Vehicle Expenses Alteration
+--    Run this to add branch to the vehicle_expenses table
+-- ALTER TABLE vehicle_expenses ADD COLUMN IF NOT EXISTS branch TEXT;

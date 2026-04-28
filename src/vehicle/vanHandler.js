@@ -33,14 +33,25 @@ async function askNextChecklistItem(sock, jid, session) {
 async function finalizeSubmission(sock, jid, session) {
     try {
         if (session.isEditing) {
-            // UPDATE
+            // UPDATE — persist new checklist/comments
             await updateReport(session.editingReportId, 'van', {
                 checklist: session.checklistResults,
                 comments:  session.comments || ''
             });
-            // Regenerate image with Edited label
-            await reportHelper.sendReportToGroup(sock, { ...session, isEdited: true });
-            await sock.sendMessage(jid, { text: "Report updated successfully. \u2705" });
+            // Regenerate image — ensure inspector/driver/vehicle fields are present
+            const reportPayload = {
+                ...session,
+                isEdited:      true,
+                driverName:    session.driverName    || 'Unknown Driver',
+                branch:        session.branch        || session.inspectorBranch || 'N/A',
+                inspectorName: session.inspectorName || 'Unknown Inspector',
+                inspectorBranch: session.inspectorBranch || 'N/A',
+                vehicleMake:   session.vehicleMake   || '',
+                vehicleModel:  session.vehicleModel  || '',
+                vehicleReg:    session.vehicleReg    || 'N/A',
+            };
+            await reportHelper.sendReportToGroup(sock, reportPayload);
+            await sock.sendMessage(jid, { text: "Report updated successfully. ✅" });
         } else {
             // INSERT
             const reportData = {
@@ -53,7 +64,7 @@ async function finalizeSubmission(sock, jid, session) {
             };
             await saveInspectionReport(reportData);
             await reportHelper.sendReportToGroup(sock, session);
-            await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! \ud83d\ude97" });
+            await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! 🚗" });
         }
     } catch (err) {
         console.error("Failed to save/update report:", err);
@@ -198,10 +209,9 @@ async function handleVanStep(sock, msg, text, jid) {
                     });
                     await sock.sendMessage(jid, { text: "Please describe the fault:" });
                 } else {
-                    await sock.sendMessage(jid, { text: "Please reply with Y, N, or cancel." });
-                    // Re-ask current question
-                    const curItem = checklistItems[session.checklistIndex];
-                    await sock.sendMessage(jid, { text: `${curItem} in good condition? Reply *Y* for yes or *N* for no, or *cancel* to end the session.` });
+                    await sock.sendMessage(jid, { text: "Please reply with *Y*, *N*, or *cancel*." });
+                    // Re-ask current question using the proper formatter
+                    await askNextChecklistItem(sock, jid, session);
                 }
             }
             return true;

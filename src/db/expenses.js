@@ -1,6 +1,6 @@
 const supabase = require('./supabase');
 
-async function saveVehicleExpense({ vehicle_registration, amount, currency, description, source_message, reporter_jid }) {
+async function saveVehicleExpense({ vehicle_registration, amount, currency, description, branch, source_message, reporter_jid }) {
     try {
         const { data, error } = await supabase
             .from('vehicle_expenses')
@@ -9,6 +9,7 @@ async function saveVehicleExpense({ vehicle_registration, amount, currency, desc
                 amount,
                 currency: currency || 'USD',
                 description,
+                branch,
                 expense_date: new Date().toISOString(),
                 source_message,
                 reporter_jid
@@ -120,9 +121,36 @@ async function getRecentExpenses(limit = 10) {
     }
 }
 
+/**
+ * Fetches expenses within a specific date range.
+ * @param {string} startDateStr - e.g. 2026-04-01
+ * @param {string} endDateStr - e.g. 2026-04-30
+ */
+async function getExpensesByDateRange(startDateStr, endDateStr) {
+    // Add time component to capture full days
+    const startIso = `${startDateStr}T00:00:00.000Z`;
+    const endIso = `${endDateStr}T23:59:59.999Z`;
+
+    try {
+        const { data, error } = await supabase
+            .from('vehicle_expenses')
+            .select('*')
+            .gte('expense_date', startIso)
+            .lte('expense_date', endIso)
+            .order('expense_date', { ascending: true });
+
+        if (error) throw error;
+        return data;
+    } catch (err) {
+        console.error('Error in getExpensesByDateRange:', err);
+        throw err;
+    }
+}
+
 module.exports = {
     saveVehicleExpense,
     getMonthlyExpenses,
     getMonthlyDistances,
-    getRecentExpenses
+    getRecentExpenses,
+    getExpensesByDateRange
 };

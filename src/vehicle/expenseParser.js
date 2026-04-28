@@ -3,11 +3,12 @@
  * Expected Format:
  * Expense
  * Vehicle: [Registration]
+ * Branch: [Location]
  * Amount: [Number]
  * Description: [Text]
  * 
  * @param {string} rawMessage The message from WhatsApp 
- * @returns {{success: boolean, data?: {vehicle_registration: string, amount: number, description: string}, error?: string}}
+ * @returns {{success: boolean, data?: {vehicle_registration: string, branch: string, amount: number, description: string}, error?: string}}
  */
 function parseExpenseMessage(rawMessage) {
     const trimmed = rawMessage.trim();
@@ -28,6 +29,7 @@ function parseExpenseMessage(rawMessage) {
         if (key === 'vehicle') data.vehicle_registration = value;
         if (key === 'amount') data.amount_raw = value;
         if (key === 'description') data.description = value;
+        if (key === 'branch') data.branch = value;
     }
 
     // Validation
@@ -54,12 +56,17 @@ function parseExpenseMessage(rawMessage) {
         return { success: false, error: "❌ Invalid format. 'Description:' line is missing or empty." };
     }
 
+    if (!data.branch) {
+        return { success: false, error: "❌ Invalid format. 'Branch:' line is missing or empty." };
+    }
+
     return {
         success: true,
         data: {
             vehicle_registration: data.vehicle_registration,
             amount: amount,
-            description: data.description
+            description: data.description,
+            branch: data.branch
         }
     };
 }

@@ -328,6 +328,9 @@ async function handleRouteMessage(sock, senderJid, text, session) {
                 break;
             }
 
+            // vehicle was not in scope here — read from session
+            const vehicle = session.vehicles[session.currentVehicleIndex];
+
             if (session.isSingleEdit) {
                 session.vehicleRoutes[session.currentVehicleIndex] = {
                     registration: vehicle.registration,
@@ -347,7 +350,7 @@ async function handleRouteMessage(sock, senderJid, text, session) {
                     reported_distance_km: distance
                 });
             }
-            console.log(`Vehicle ${vehicle.registration}: routes ${session.tempRoutes.map(r => r.name).join(', ')}, distance: ${distance}km`);
+            console.log(`Vehicle ${vehicle.registration}: routes ${(session.tempRoutes || []).map(r => r.name).join(', ')}, distance: ${distance}km`);
 
             session.tempRoutes = null;
             await advanceOrSummary(sock, senderJid, session);
