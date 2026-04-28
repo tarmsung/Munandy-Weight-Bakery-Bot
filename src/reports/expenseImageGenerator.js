@@ -13,10 +13,13 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
     const rows = expenses.map(exp => {
         const dateObj = new Date(exp.expense_date);
         const displayDate = dateObj.toLocaleDateString('en-GB'); // dd/mm/yyyy
+        const vehicleLabel = exp.branch
+            ? exp.vehicle_registration + ' <span class="branch-tag">(' + exp.branch + ')</span>'
+            : exp.vehicle_registration;
         return (
             '<tr>' +
             '<td class="date-col">' + displayDate + '</td>' +
-            '<td>' + exp.vehicle_registration + '</td>' +
+            '<td>' + vehicleLabel + '</td>' +
             '<td>' + exp.description + '</td>' +
             '<td class="amount-col">$' + Number(exp.amount).toFixed(2) + '</td>' +
             '</tr>'
@@ -104,6 +107,11 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
         .date-col {
             color: #7f8c8d;
             font-size: 12px;
+        }
+        .branch-tag {
+            font-size: 11px;
+            color: #7f8c8d;
+            font-weight: normal;
         }
         .footer {
             margin-top: 25px;
