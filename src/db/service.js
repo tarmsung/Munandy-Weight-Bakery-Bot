@@ -56,9 +56,10 @@ async function processTripKm(vehicleRoutes) {
         // 3. Check if we've already alerted this vehicle today
         const { error: alertError } = await supabase
             .from('service_alerts')
-            .insert({ registration, alert_date: today, status })
-            .onConflict(['registration', 'alert_date'])
-            .ignore();
+            .upsert(
+                { registration, alert_date: today, status },
+                { onConflict: 'registration, alert_date', ignoreDuplicates: true }
+            );
 
         // If insert succeeded (no conflict), it means we haven't alerted yet today
         // We push regardless and let the caller deduplicate using the conflict flag
