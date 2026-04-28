@@ -123,14 +123,14 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
             ${expenses.map(exp => {
                 const dateObj = new Date(exp.expense_date);
                 const displayDate = dateObj.toLocaleDateString('en-GB'); // dd/mm/yyyy
-                return \`
+                return `
                 <tr>
-                    <td class="date-col">\${displayDate}</td>
-                    <td>\${exp.vehicle_registration}</td>
-                    <td>\${exp.description}</td>
-                    <td class="amount-col">$\${Number(exp.amount).toFixed(2)}</td>
+                    <td class="date-col">${displayDate}</td>
+                    <td>${exp.vehicle_registration}</td>
+                    <td>${exp.description}</td>
+                    <td class="amount-col">$${Number(exp.amount).toFixed(2)}</td>
                 </tr>
-                \`;
+                `;
             }).join('')}
         </tbody>
     </table>
