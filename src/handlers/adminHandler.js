@@ -775,11 +775,17 @@ async function handleAdminStep(sock, msg, text, jid) {
                 }
                 const selected = session.list[idx];
                 const name = selected.nickname ? `${selected.make} ${selected.nickname}` : `${selected.make} ${selected.registration}`;
+                const kmSince  = Math.round(selected.km_since_service);
+                const dueAtKm  = Math.round(selected.service_due_at_km || 5000);
+                const kmLeft   = Math.max(dueAtKm - kmSince, 0);
+                const carryLine = kmLeft > 0
+                    ? `Km remaining until service due: *${kmLeft.toLocaleString()} km* _(will carry over)_`
+                    : `Km remaining: *none* — vehicle is overdue`;
                 setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_CONFIRM', selectedVehicle: selected });
                 await reply(
                     `🔧 *Log Service — ${name}* [${selected.registration}]\n\n` +
-                    `Current km since last service: *${Math.round(selected.km_since_service).toLocaleString()} km*\n\n` +
-                    `Logging a service will *reset the KM counter to 0*.\n` +
+                    `Km since last service: *${kmSince.toLocaleString()} km*\n` +
+                    `${carryLine}\n\n` +
                     `Reply *yes* to confirm or *back* to cancel.`
                 );
                 return true;
@@ -789,10 +795,14 @@ async function handleAdminStep(sock, msg, text, jid) {
                 if (input.toLowerCase() === 'yes' || input.toLowerCase() === 'y') {
                     const v = session.selectedVehicle;
                     try {
-                        await logServiceCompleted(v.registration);
+                        const { nextDueAtKm } = await logServiceCompleted(v.registration);
                         const name = v.nickname ? `${v.make} ${v.nickname}` : `${v.make} ${v.registration}`;
+                        const carryKm = Math.round(nextDueAtKm - 5000);
+                        const carryOverNote = carryKm > 0
+                            ? `\n⭐ *Next service interval:*\n   5,000 km + ${carryKm.toLocaleString()} km carry-over`
+                            : `\n📅 *Next service due at:* 5,000 km`;
                         await backToMenu(sock, jid, session, reply,
-                            `✅ *Service Logged!*\n*${name}* [${v.registration}]\nKm counter has been reset to 0.\n\n`
+                            `✅ *Service Logged!*\n*${name}* [${v.registration}]\nKm counter has been reset to 0.${carryOverNote}\n\n`
                         );
                     } catch (err) {
                         await backToMenu(sock, jid, session, reply, `❌ *Failed to log service:*\n${err.message}\n\n`);

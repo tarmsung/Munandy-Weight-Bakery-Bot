@@ -1,5 +1,5 @@
 const nodeHtmlToImage = require('node-html-to-image');
-const { SERVICE_INTERVAL_KM } = require('../db/service');
+const { DUE_SOON_BUFFER_KM } = require('../db/service');
 const { getSocket } = require('../state');
 
 /**
@@ -8,10 +8,11 @@ const { getSocket } = require('../state');
 function buildServiceAlertHTML(alertVehicles, dateLabel) {
     const rows = alertVehicles.map(v => {
         const km = Math.round(v.km_since_service);
+        const kmLeft = Math.round(v.km_left);
         const isOverdue = v.status === 'OVERDUE';
         const kmText = isOverdue
-            ? `<span class="overdue-text">OVERDUE by ${km - SERVICE_INTERVAL_KM} km</span>`
-            : `<span class="due-soon-text">${SERVICE_INTERVAL_KM - km} km remaining</span>`;
+            ? `<span class="overdue-text">OVERDUE by ${Math.abs(kmLeft).toLocaleString()} km</span>`
+            : `<span class="due-soon-text">${kmLeft.toLocaleString()} km remaining</span>`;
         const badge = isOverdue
             ? `<span class="badge overdue">🔴 OVERDUE</span>`
             : `<span class="badge due-soon">⚠️ DUE SOON</span>`;
@@ -158,11 +159,12 @@ async function sendServiceAlertImage(sock, alertVehicles) {
             const isOverdue = v.status === 'OVERDUE';
             const name = v.nickname ? `${v.make} ${v.nickname}` : v.make;
             fallback += `${isOverdue ? '🔴' : '⚠️'} *${name}* (${v.registration})\n`;
+            const kmLeft = Math.round(v.km_left);
             fallback += `   Km since service: ${km.toLocaleString()} km\n`;
             if (isOverdue) {
-                fallback += `   Status: OVERDUE by ${km - SERVICE_INTERVAL_KM} km\n\n`;
+                fallback += `   Status: OVERDUE by ${Math.abs(kmLeft).toLocaleString()} km\n\n`;
             } else {
-                fallback += `   Status: DUE SOON — ${SERVICE_INTERVAL_KM - km} km remaining\n\n`;
+                fallback += `   Status: DUE SOON — ${kmLeft.toLocaleString()} km remaining\n\n`;
             }
         });
         try {
