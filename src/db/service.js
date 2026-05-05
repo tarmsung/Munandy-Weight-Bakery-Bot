@@ -110,7 +110,13 @@ async function getVehicleServiceStatus() {
     if (error) throw error;
 
     return data.map(v => {
-        const svc = v.vehicle_service && v.vehicle_service.length > 0 ? v.vehicle_service[0] : null;
+        let svc = null;
+        if (Array.isArray(v.vehicle_service)) {
+            svc = v.vehicle_service.length > 0 ? v.vehicle_service[0] : null;
+        } else {
+            svc = v.vehicle_service;
+        }
+        
         const kmSince      = svc ? parseFloat(svc.km_since_service)  : 0;
         const dueAtKm      = svc ? parseFloat(svc.service_due_at_km) : SERVICE_INTERVAL_KM;
         const kmLeft       = dueAtKm - kmSince;
@@ -140,42 +146,26 @@ async function getVehicleServiceStatus() {
 /**
  * Log a completed service for a vehicle.
  *
- * Carry-over logic:
- *   - If serviced EARLY (km_since_service < service_due_at_km):
- *       Remaining km are credited → next service due at 5000 + remaining
- *   - If serviced ON TIME or LATE (km_since_service >= service_due_at_km):
- *       Standard reset → next service due at 5000
- *
- * In both cases, km_since_service is reset to 0.
+ * Reset logic:
+ *   - km_since_service is reset to 0.
+ *   - service_due_at_km is reset to 5000
  *
  * @param {string} registration
  */
 async function logServiceCompleted(registration) {
     const today = new Date().toISOString().split('T')[0];
 
-    // Fetch current state to calculate carry-over
+    // Fetch current state
     const { data: existing } = await supabase
         .from('vehicle_service')
         .select('id, km_since_service, service_due_at_km')
         .eq('registration', registration)
         .maybeSingle();
 
-    let nextDueAtKm = SERVICE_INTERVAL_KM; // default: no carry-over
+    const nextDueAtKm = SERVICE_INTERVAL_KM;
 
     if (existing) {
-        const kmSince  = parseFloat(existing.km_since_service  || 0);
-        const dueAtKm  = parseFloat(existing.service_due_at_km || SERVICE_INTERVAL_KM);
-        const remaining = dueAtKm - kmSince;
-
-        if (remaining > 0) {
-            // Vehicle was serviced before it was due — credit the unused km
-            nextDueAtKm = SERVICE_INTERVAL_KM + remaining;
-            console.log(`[Service] ${registration} serviced early. Remaining: ${remaining.toFixed(0)} km → next due at ${nextDueAtKm.toFixed(0)} km`);
-        } else {
-            // On time or overdue — standard 5000 km reset
-            nextDueAtKm = SERVICE_INTERVAL_KM;
-            console.log(`[Service] ${registration} serviced on time/late. Standard reset to ${SERVICE_INTERVAL_KM} km.`);
-        }
+        console.log(`[Service] ${registration} serviced. Standard reset to ${SERVICE_INTERVAL_KM} km.`);
 
         const { error } = await supabase
             .from('vehicle_service')
@@ -203,10 +193,27 @@ async function logServiceCompleted(registration) {
     return { nextDueAtKm };
 }
 
+/**
+ * Record a mileage log when a service is completed.
+ * @param {string} registration 
+ * @param {number} odometer_reading 
+ */
+async function recordServiceMileage(registration, odometer_reading) {
+    const { error } = await supabase
+        .from('service_logs')
+        .insert({
+            registration,
+            odometer_reading
+        });
+    if (error) throw error;
+    return true;
+}
+
 module.exports = {
     processTripKm,
     getVehicleServiceStatus,
     logServiceCompleted,
+    recordServiceMileage,
     SERVICE_INTERVAL_KM,
     DUE_SOON_BUFFER_KM
 };

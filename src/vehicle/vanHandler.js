@@ -1,4 +1,4 @@
-const { lookupVehicle, saveInspectionReport, updateReport, getAllDrivers, getDriverById } = require('../db/vehicles');
+const { lookupVehicle, saveInspectionReport, updateReport, getAllDrivers, getDriverById, updateVehicle } = require('../db/vehicles');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 const checklistItems = require('./checklist');
 const reportHelper = require('./report');
@@ -24,8 +24,8 @@ async function askNextChecklistItem(sock, jid, session) {
         await sock.sendMessage(jid, { text: msg });
     } else {
         // Checklist complete
-        setSession(jid, { ...session, step: 'AWAITING_COMMENTS' });
-        await sock.sendMessage(jid, { text: "Please enter any additional comments, or reply *none*." });
+        setSession(jid, { ...session, step: 'AWAITING_ODOMETER' });
+        await sock.sendMessage(jid, { text: "Please enter the current odometer reading of the vehicle (numbers only)." });
     }
 }
 
@@ -63,6 +63,12 @@ async function finalizeSubmission(sock, jid, session) {
                 reporterJid:  jid
             };
             await saveInspectionReport(reportData);
+            
+            // Save odometer reading to vehicle table
+            if (session.current_mileage > 0) {
+                await updateVehicle(session.vehicleReg, { current_mileage: session.current_mileage });
+            }
+
             await reportHelper.sendReportToGroup(sock, session);
             await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! 🚗" });
         }
@@ -215,6 +221,17 @@ async function handleVanStep(sock, msg, text, jid) {
                 }
             }
             return true;
+            
+        case 'AWAITING_ODOMETER': {
+            const mileage = parseInt(input, 10);
+            if (isNaN(mileage) || mileage < 0) {
+                await sock.sendMessage(jid, { text: "❌ Invalid input. Please enter a valid number for the odometer." });
+                return true;
+            }
+            setSession(jid, { ...session, current_mileage: mileage, step: 'AWAITING_COMMENTS' });
+            await sock.sendMessage(jid, { text: "Please enter any additional comments, or reply *none*." });
+            return true;
+        }
             
         case 'AWAITING_COMMENTS': {
             // Store comments and move to driver selection

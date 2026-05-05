@@ -8,6 +8,7 @@ const { startDelete, handleDeleteStep } = require('./deleteHandler');
 const { startVan, handleVanStep } = require('../vehicle/vanHandler');
 const { handleRouteMessage } = require('../vehicle/routeFlow');
 const { handleEditMessage } = require('../vehicle/editFlow');
+const { startSupervisorReport, handleSupervisorReportStep } = require('./supervisorReportHandler');
 const { getAllSupervisors } = require('../db/supervisors');
 const { parseExpenseMessage } = require('../vehicle/expenseParser');
 const { getVehicle: checkVehicleExists } = require('../db/vehicles');
@@ -79,10 +80,10 @@ async function handleMessage(sock, msg) {
     let inAllowedSession = false;
     if (hasSession(jid)) {
         const sess = getSession(jid);
-        if (sess.flowType === 'van' || sess.flowType === 'route' || sess.flow === 'route' || sess.flow === 'van' || sess.flowType === 'edit' || sess.flow === 'edit') inAllowedSession = true;
+        if (sess.flowType === 'van' || sess.flowType === 'route' || sess.flow === 'route' || sess.flow === 'van' || sess.flowType === 'edit' || sess.flow === 'edit' || sess.flowType === 'super') inAllowedSession = true;
     }
     
-    const restrictedCmds = ['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete'];
+    const restrictedCmds = ['weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'super', '/super', '!super'];
     const isRestrictedCmd = restrictedCmds.includes(cmdRaw);
 
     if (!isAuthorized) {
@@ -154,7 +155,7 @@ async function handleMessage(sock, msg) {
     }
 
     // ── Global Command Override (Break out of sessions) ────────────────────────
-    if (['cancel', 'weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmd)) {
+    if (['cancel', 'weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit', 'super', '/super', '!super'].includes(cmd)) {
         if (hasSession(jid)) {
             clearSession(jid);
             if (cmd === 'cancel') {
@@ -181,6 +182,10 @@ async function handleMessage(sock, msg) {
             } else if (session.flowType === 'edit' || session.flow === 'edit') {
                 console.log(`[DEBUG] Routing to handleEditMessage`);
                 await handleEditMessage(sock, jid, text, session);
+                return;
+            } else if (session.flowType === 'super') {
+                console.log(`[DEBUG] Routing to handleSupervisorReportStep`);
+                await handleSupervisorReportStep(sock, msg, text, jid);
                 return;
             }
 
@@ -296,6 +301,11 @@ async function handleMessage(sock, msg) {
 
     if (['today', '/today', '!today'].includes(cmd)) {
         await handleToday(sock, jid, msg);
+        return;
+    }
+
+    if (['super', '/super', '!super'].includes(cmd)) {
+        await startSupervisorReport(sock, jid, senderNumber);
         return;
     }
 

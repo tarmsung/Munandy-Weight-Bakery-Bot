@@ -124,9 +124,9 @@ function buildServiceAlertHTML(alertVehicles, dateLabel) {
 async function sendServiceAlertImage(sock, alertVehicles) {
     if (!alertVehicles || alertVehicles.length === 0) return;
 
-    const notifyJid = process.env.NOTIFY_GROUP_JID;
+    const notifyJid = process.env.SERVICE_REPORTS_GROUP_JID || process.env.NOTIFY_GROUP_JID;
     if (!notifyJid) {
-        console.warn('[Service Alert] NOTIFY_GROUP_JID not set. Skipping alert.');
+        console.warn('[Service Alert] SERVICE_REPORTS_GROUP_JID (and fallback NOTIFY_GROUP_JID) not set. Skipping alert.');
         return;
     }
 

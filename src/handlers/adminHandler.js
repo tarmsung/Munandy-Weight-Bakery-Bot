@@ -2,7 +2,7 @@ const { getAllProducts, addProduct, updateProductRange, deleteProduct } = requir
 const { getAllSupervisors, addSupervisor, removeSupervisor } = require('../db/supervisors');
 const { addDriver, updateDriver, deleteDriver, getAllDrivers, addVehicle, updateVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
 const { getAllInsuranceStatus, upsertInsurance } = require('../db/insurance');
-const { getVehicleServiceStatus, logServiceCompleted } = require('../db/service');
+const { getVehicleServiceStatus, logServiceCompleted, recordServiceMileage } = require('../db/service');
 const { getAllRoutes, addRoute, updateRoute } = require('../db/routes');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 const { getRecentExpenses, getExpensesByDateRange } = require('../db/expenses');
@@ -211,7 +211,8 @@ async function handleAdminStep(sock, msg, text, jid) {
                     await reply(
                         `🔧 *Service Management*\n\n` +
                         `1️⃣ View service status\n` +
-                        `2️⃣ Log a completed service\n\n` +
+                        `2️⃣ Log a completed service\n` +
+                        `3️⃣ Current mileage\n\n` +
                         `_Reply with a number or type *back*._`
                     );
                 } else if (choice === 7) {
@@ -748,21 +749,36 @@ async function handleAdminStep(sock, msg, text, jid) {
                     await reply(msg);
                 } else if (choice === 2) {
                     // Directly go to log service — fetch list
-                    const vehicles = await getVehicleServiceStatus();
-                    if (vehicles.length === 0) {
+                    const vehicles2 = await getVehicleServiceStatus();
+                    if (vehicles2.length === 0) {
                         await backToMenu(sock, jid, session, reply, `❌ No active vehicles found.\n\n`);
                         return true;
                     }
-                    setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_SELECT', list: vehicles });
-                    let msg = `🔧 *Log Completed Service — Select Vehicle*\n\n`;
-                    vehicles.forEach((v, idx) => {
+                    setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_SELECT', list: vehicles2 });
+                    let msg2 = `🔧 *Log Completed Service — Select Vehicle*\n\n`;
+                    vehicles2.forEach((v, idx) => {
                         const name = v.nickname ? `${v.make} ${v.nickname}` : `${v.make} ${v.registration}`;
-                        msg += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} ${name} [${v.registration}]\n`;
+                        msg2 += `${NUMBER_EMOJIS[idx] || (idx + 1 + '.')} ${name} [${v.registration}]\n`;
                     });
-                    msg += `\n_Reply with the number of the vehicle, or type *back*._`;
-                    await reply(msg);
+                    msg2 += `\n_Reply with the number of the vehicle, or type *back*._`;
+                    await reply(msg2);
+                } else if (choice === 3) {
+                    // Current mileage list
+                    const vehicles3 = await getAllActiveVehicles();
+                    if (vehicles3.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `❌ No active vehicles found.\n\n`);
+                        return true;
+                    }
+                    const today3 = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+                    let msg3 = `🛣️ *Current Vehicle Mileage — ${today3}*\n\n`;
+                    vehicles3.forEach((v, idx) => {
+                        const name = v.nickname ? `${v.nickname} (${v.registration})` : `${v.make} ${v.registration}`;
+                        const mileage = v.current_mileage > 0 ? `${v.current_mileage.toLocaleString()} km` : `*(Odometer Dead or Not Recorded)*`;
+                        msg3 += `${idx + 1}. *${name}*\n   Current Reading: ${mileage}\n\n`;
+                    });
+                    await backToMenu(sock, jid, session, reply, msg3);
                 } else {
-                    await reply(`❌ Invalid choice. Reply with 1 or 2, or type *back*._`);
+                    await reply(`❌ Invalid choice. Reply with 1, 2 or 3, or type *back*._`);
                 }
                 return true;
             }
@@ -778,14 +794,14 @@ async function handleAdminStep(sock, msg, text, jid) {
                 const kmSince  = Math.round(selected.km_since_service);
                 const dueAtKm  = Math.round(selected.service_due_at_km || 5000);
                 const kmLeft   = Math.max(dueAtKm - kmSince, 0);
-                const carryLine = kmLeft > 0
-                    ? `Km remaining until service due: *${kmLeft.toLocaleString()} km* _(will carry over)_`
+                const kmLine = kmLeft > 0
+                    ? `Km remaining until service due: *${kmLeft.toLocaleString()} km*`
                     : `Km remaining: *none* — vehicle is overdue`;
                 setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_CONFIRM', selectedVehicle: selected });
                 await reply(
                     `🔧 *Log Service — ${name}* [${selected.registration}]\n\n` +
                     `Km since last service: *${kmSince.toLocaleString()} km*\n` +
-                    `${carryLine}\n\n` +
+                    `${kmLine}\n\n` +
                     `Reply *yes* to confirm or *back* to cancel.`
                 );
                 return true;
@@ -795,20 +811,38 @@ async function handleAdminStep(sock, msg, text, jid) {
                 if (input.toLowerCase() === 'yes' || input.toLowerCase() === 'y') {
                     const v = session.selectedVehicle;
                     try {
-                        const { nextDueAtKm } = await logServiceCompleted(v.registration);
-                        const name = v.nickname ? `${v.make} ${v.nickname}` : `${v.make} ${v.registration}`;
-                        const carryKm = Math.round(nextDueAtKm - 5000);
-                        const carryOverNote = carryKm > 0
-                            ? `\n⭐ *Next service interval:*\n   5,000 km + ${carryKm.toLocaleString()} km carry-over`
-                            : `\n📅 *Next service due at:* 5,000 km`;
-                        await backToMenu(sock, jid, session, reply,
-                            `✅ *Service Logged!*\n*${name}* [${v.registration}]\nKm counter has been reset to 0.${carryOverNote}\n\n`
-                        );
+                        await logServiceCompleted(v.registration);
+                        
+                        // Proceed to ask for odometer
+                        setSession(jid, { ...session, step: 'ADMIN_LOG_SERVICE_MILEAGE' });
+                        await reply(`✅ Service has been marked as completed.\n\nPlease enter the current mileage/odometer reading.\n_(Enter 0 if the odometer is dead)_\n\n_Type *back* to return to the menu._`);
                     } catch (err) {
                         await backToMenu(sock, jid, session, reply, `❌ *Failed to log service:*\n${err.message}\n\n`);
                     }
                 } else {
                     await backToMenu(sock, jid, session, reply, `↩️ Service log cancelled.\n\n`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_LOG_SERVICE_MILEAGE': {
+                const mileage = parseInt(input, 10);
+                if (isNaN(mileage) || mileage < 0) {
+                    await reply(`❌ Invalid input. Please enter a valid odometer reading (number) or 0 if dead.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                
+                const v = session.selectedVehicle;
+                try {
+                    await recordServiceMileage(v.registration, mileage);
+                    
+                    const name = v.nickname ? `${v.make} ${v.nickname}` : `${v.make} ${v.registration}`;
+                    const mileageNote = mileage === 0 ? "*(Odometer Dead)*" : `at ${mileage.toLocaleString()} km`;
+                    await backToMenu(sock, jid, session, reply,
+                        `✅ *Service Mileage Recorded!*\n*${name}* [${v.registration}]\nKm counter has been reset to 0.\n📅 *Next service due at:* 5,000 km\nReading: ${mileageNote}\n\n`
+                    );
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to save mileage:*\n${err.message}\n\n`);
                 }
                 return true;
             }
