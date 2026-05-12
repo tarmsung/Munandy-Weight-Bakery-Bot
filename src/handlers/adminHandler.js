@@ -343,10 +343,14 @@ async function handleAdminStep(sock, msg, text, jid) {
                 const branch = session.expenseBranch || 'all';
                 const branchDisplay = branch === 'all' ? 'All Branches' : branch;
 
+                // Map human-readable branch names to database codes
+                const branchCodes = { 'Harare': 'MH', 'Mutare': 'MM', 'Bulawayo': 'MB' };
+                const dbBranch = branch === 'all' ? 'all' : branchCodes[branch];
+
                 await reply(`⏳ *Fetching ${branchDisplay} expenses for ${session.tempStartDateDisplay} to ${input}...* Please wait.`);
 
                 try {
-                    const expenses = await getExpensesByDateRange(session.tempStartDateStr, endStr, branch);
+                    const expenses = await getExpensesByDateRange(session.tempStartDateStr, endStr, dbBranch);
                     
                     if (!expenses || expenses.length === 0) {
                         await backToMenu(sock, jid, session, reply, `📭 No expenses were found for *${branchDisplay}* between *${session.tempStartDateDisplay}* and *${input}*.\n\n`);
