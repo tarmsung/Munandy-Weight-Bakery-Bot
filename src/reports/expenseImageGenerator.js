@@ -6,9 +6,10 @@ const nodeHtmlToImage = require('node-html-to-image');
  * @param {string} startDateStr - start date string (e.g. 01/04/2026)
  * @param {string} endDateStr - end date string (e.g. 15/04/2026)
  * @param {number} totalAmount - Total expense amount
+ * @param {string} branchName - Name of the branch (or 'All Branches')
  * @returns {Promise<Buffer>}
  */
-async function generateExpenseImageReport(expenses, startDateStr, endDateStr, totalAmount) {
+async function generateExpenseImageReport(expenses, startDateStr, endDateStr, totalAmount, branchName = 'All Branches') {
     // Build rows using string concatenation to avoid nested template literal conflicts
     const rows = expenses.map(exp => {
         const dateObj = new Date(exp.expense_date);
@@ -129,7 +130,7 @@ async function generateExpenseImageReport(expenses, startDateStr, endDateStr, to
 <body>
     <div class="header">
         <h1>Munandy Transport</h1>
-        <p>Vehicle Expense Report • ${startDateStr} to ${endDateStr}</p>
+        <p>Vehicle Expense Report • ${branchName} • ${startDateStr} to ${endDateStr}</p>
     </div>
 
     <div class="summary-bar">

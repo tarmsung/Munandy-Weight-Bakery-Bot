@@ -246,11 +246,13 @@ async function handleAdminStep(sock, msg, text, jid) {
                     msg += `\n_Reply with the number of the vehicle to edit, or type *back*._`;
                     await reply(msg);
                 } else if (choice === 10) {
-                    setSession(jid, { ...session, step: 'ADMIN_EXPENSE_START_DATE' });
+                    setSession(jid, { ...session, step: 'ADMIN_EXPENSE_BRANCH_SELECTION' });
                     await reply(
                         `💰 *Custom Expense Report*\n\n` +
-                        `Welcome! Please enter the *Start Date* for the report in the format *dd/mm/yyyy* (e.g. 01/04/2026).\n\n` +
-                        `_Type *back* to return._`
+                        `Select the branch you want to view expenses for:\n\n` +
+                        `1️⃣ Choose Branch\n` +
+                        `2️⃣ All\n\n` +
+                        `_Reply with a number or type *back* to return._`
                     );
                 } else {
                     await reply(`❌ Invalid choice. Please reply with 1–10.`);
@@ -259,6 +261,47 @@ async function handleAdminStep(sock, msg, text, jid) {
             }
 
             // --- Expense Management ---
+            case 'ADMIN_EXPENSE_BRANCH_SELECTION': {
+                const choice = parseInt(input, 10);
+                if (choice === 1) {
+                    setSession(jid, { ...session, step: 'ADMIN_EXPENSE_BRANCH_PICK' });
+                    await reply(
+                        `🏢 *Select Branch*\n\n` +
+                        `1️⃣ Harare\n` +
+                        `2️⃣ Mutare\n` +
+                        `3️⃣ Bulawayo\n\n` +
+                        `_Reply with a number or type *back* to return._`
+                    );
+                } else if (choice === 2) {
+                    setSession(jid, { ...session, step: 'ADMIN_EXPENSE_START_DATE', expenseBranch: 'all' });
+                    await reply(
+                        `💰 *Custom Expense Report - All Branches*\n\n` +
+                        `Please enter the *Start Date* for the report in the format *dd/mm/yyyy* (e.g. 01/04/2026).\n\n` +
+                        `_Type *back* to return._`
+                    );
+                } else {
+                    await reply(`❌ Invalid choice. Please reply with 1 or 2.`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_EXPENSE_BRANCH_PICK': {
+                const branches = { 1: 'Harare', 2: 'Mutare', 3: 'Bulawayo' };
+                const choice = parseInt(input, 10);
+                const branch = branches[choice];
+                if (!branch) {
+                    await reply(`❌ Invalid choice. Reply with 1, 2, or 3.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_EXPENSE_START_DATE', expenseBranch: branch });
+                await reply(
+                    `💰 *Custom Expense Report - ${branch}*\n\n` +
+                    `Please enter the *Start Date* for the report in the format *dd/mm/yyyy* (e.g. 01/04/2026).\n\n` +
+                    `_Type *back* to return._`
+                );
+                return true;
+            }
+
             case 'ADMIN_EXPENSE_START_DATE': {
                 // Validate dd/mm/yyyy
                 const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
@@ -297,13 +340,16 @@ async function handleAdminStep(sock, msg, text, jid) {
                      return true;
                 }
 
-                await reply(`⏳ *Fetching expenses for ${session.tempStartDateDisplay} to ${input}...* Please wait.`);
+                const branch = session.expenseBranch || 'all';
+                const branchDisplay = branch === 'all' ? 'All Branches' : branch;
+
+                await reply(`⏳ *Fetching ${branchDisplay} expenses for ${session.tempStartDateDisplay} to ${input}...* Please wait.`);
 
                 try {
-                    const expenses = await getExpensesByDateRange(session.tempStartDateStr, endStr);
+                    const expenses = await getExpensesByDateRange(session.tempStartDateStr, endStr, branch);
                     
                     if (!expenses || expenses.length === 0) {
-                        await backToMenu(sock, jid, session, reply, `📭 No expenses were found between *${session.tempStartDateDisplay}* and *${input}*.\n\n`);
+                        await backToMenu(sock, jid, session, reply, `📭 No expenses were found for *${branchDisplay}* between *${session.tempStartDateDisplay}* and *${input}*.\n\n`);
                         return true;
                     }
 
@@ -315,13 +361,14 @@ async function handleAdminStep(sock, msg, text, jid) {
                         expenses,
                         session.tempStartDateDisplay,
                         input,
-                        totalAmount
+                        totalAmount,
+                        branchDisplay
                     );
 
                     // Send Image
                     await sock.sendMessage(jid, {
                         image: imageBuffer,
-                        caption: `💰 *Vehicle Expense Report*\nFrom: ${session.tempStartDateDisplay}\nTo: ${input}\n\nTotal Expenses: *$${totalAmount.toFixed(2)}*\n\n_Returning to main menu..._`
+                        caption: `💰 *Vehicle Expense Report - ${branchDisplay}*\nFrom: ${session.tempStartDateDisplay}\nTo: ${input}\n\nTotal Expenses: *$${totalAmount.toFixed(2)}*\n\n_Returning to main menu..._`
                     });
 
                     // Reset session back to menu silently

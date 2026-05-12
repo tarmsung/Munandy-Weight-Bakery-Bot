@@ -125,19 +125,25 @@ async function getRecentExpenses(limit = 10) {
  * Fetches expenses within a specific date range.
  * @param {string} startDateStr - e.g. 2026-04-01
  * @param {string} endDateStr - e.g. 2026-04-30
+ * @param {string} branch - (Optional) Filter by branch
  */
-async function getExpensesByDateRange(startDateStr, endDateStr) {
+async function getExpensesByDateRange(startDateStr, endDateStr, branch = null) {
     // Add time component to capture full days
     const startIso = `${startDateStr}T00:00:00.000Z`;
     const endIso = `${endDateStr}T23:59:59.999Z`;
 
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('vehicle_expenses')
             .select('*')
             .gte('expense_date', startIso)
-            .lte('expense_date', endIso)
-            .order('expense_date', { ascending: true });
+            .lte('expense_date', endIso);
+
+        if (branch && branch !== 'all') {
+            query = query.eq('branch', branch);
+        }
+
+        const { data, error } = await query.order('expense_date', { ascending: true });
 
         if (error) throw error;
         return data;
