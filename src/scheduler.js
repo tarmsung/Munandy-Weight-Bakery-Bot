@@ -231,9 +231,9 @@ async function runMonthlyViabilityReport(testDate = null) {
     }
 
     // Determine the month and year to run for. 
-    // Usually, on the 1st of the month, we want to run for the *previous* month.
+    // Usually, when run early in the month (e.g. 2nd), we want to run for the *previous* month.
     let dateToUse = testDate || new Date();
-    // If it's the 1st of the month, the report should analyze the past month
+    // If it's early in the month, the report should analyze the past month
     if (!testDate && dateToUse.getDate() <= 5) {
         dateToUse = new Date(dateToUse.getFullYear(), dateToUse.getMonth() - 1, 15);
     }
@@ -352,8 +352,8 @@ function startScheduler() {
     // ── Daily Fleet Report: Cron job for automated fleet status ─────────────
     initDailyFleetReportCron();
 
-    // ── Monthly Viability Report: 1st of every month at 9:00 AM ─────────────
-    const viabilityCronExpr = '0 9 1 * *';
+    // ── Monthly Viability Report: 2nd of every month at 9:00 AM ─────────────
+    const viabilityCronExpr = '0 9 2 * *';
     cron.schedule(
         viabilityCronExpr,
         () => {
@@ -366,8 +366,8 @@ function startScheduler() {
     );
     console.log(`⏰ Scheduler started — Monthly Viability Report at ${viabilityCronExpr} (Africa/Johannesburg)`);
 
-    // ── Monthly AI Weight Analysis: 1st of every month at 9:05 AM ─────────────
-    const weightAnalysisCronExpr = '5 9 1 * *';
+    // ── Monthly AI Weight Analysis: 3rd of every month at 9:05 AM ─────────────
+    const weightAnalysisCronExpr = '5 9 3 * *';
     cron.schedule(
         weightAnalysisCronExpr,
         () => {
