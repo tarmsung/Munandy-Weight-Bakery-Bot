@@ -1,4 +1,5 @@
 const { getAllProducts, addProduct, updateProductRange, deleteProduct } = require('../db/products');
+const { getSetting, updateSetting } = require('../db/settings');
 const { getAllSupervisors, addSupervisor, removeSupervisor } = require('../db/supervisors');
 const { addDriver, updateDriver, deleteDriver, getAllDrivers, addVehicle, updateVehicle, deleteVehicle, getAllActiveVehicles } = require('../db/vehicles');
 const { getAllInsuranceStatus, upsertInsurance } = require('../db/insurance');
@@ -24,7 +25,8 @@ const ADMIN_PRODUCTION_MENU_TEXT =
     `2️⃣ Remove a Supervisor\n` +
     `3️⃣ Add a new Product\n` +
     `4️⃣ Change accepted weights for a Product\n` +
-    `5️⃣ Delete a Product\n\n` +
+    `5️⃣ Delete a Product\n` +
+    `6️⃣ Change Iced/Creamed subtracted weight\n\n` +
     `_Reply with a number. Type *back* at any step to return to the main menu._`;
 
 const ADMIN_TRANSPORT_MENU_TEXT =
@@ -149,8 +151,17 @@ async function handleAdminStep(sock, msg, text, jid) {
                     });
                     msg += `\n_Reply with the number of the product to completely delete, or type *back*._\n\n⚠️ *Warning:* This cannot be undone!`;
                     await reply(msg);
+                } else if (choice === 6) {
+                    const currentVal = await getSetting('finish_deduction_weight', '20');
+                    setSession(jid, { ...session, step: 'ADMIN_EDIT_DEDUCTION_WEIGHT' });
+                    await reply(
+                        `🍰 *Change Iced/Creamed Subtracted Weight*\n\n` +
+                        `Current subtraction: *${currentVal}g*\n\n` +
+                        `Enter the new weight in grams to subtract when a product is marked as Iced or Creamed (e.g. 20, 25, 30):\n\n` +
+                        `_Type *back* to return to the menu._`
+                    );
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1–5.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–6.`);
                 }
                 return true;
             }
@@ -541,6 +552,21 @@ async function handleAdminStep(sock, msg, text, jid) {
                 } catch (err) {
                     // This can happen if foreign key constraints fail on weight_records
                     await backToMenu(sock, jid, session, reply, `❌ *Failed to delete!*\nThe product cannot be deleted because it already has weight records linked to it.\n\n`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_EDIT_DEDUCTION_WEIGHT': {
+                const newDeduction = parseFloat(input);
+                if (isNaN(newDeduction) || newDeduction < 0) {
+                    await reply(`❌ Enter a valid positive number.\n\n_Type *back* to return to the menu._`);
+                    return true;
+                }
+                try {
+                    await updateSetting('finish_deduction_weight', newDeduction.toString());
+                    await backToMenu(sock, jid, session, reply, `✅ *Deduction Weight Updated!*\nThe subtracted weight for Iced/Creamed products is now *${newDeduction}g*.\n\n`);
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to update setting:*\n${err.message}\n\n`);
                 }
                 return true;
             }

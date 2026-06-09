@@ -4,6 +4,7 @@ const { getSupervisorBranch } = require('../db/supervisors');
 const { saveFlourLog } = require('../db/flourLogs');
 const { sendBranchReport } = require('../scheduler');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
+const { getSetting } = require('../db/settings');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣', '1️⃣6️⃣', '1️⃣7️⃣', '1️⃣8️⃣', '1️⃣9️⃣', '2️⃣0️⃣'];
 
@@ -218,8 +219,11 @@ async function handleWeighStep(sock, msg, text, jid) {
             const rawAvgRounded = Math.round(rawAvg);
 
             let effectiveAvg = rawAvg;
+            let deductedAmount = 0;
             if (finishType === 'Creamed' || finishType === 'Iced') {
-                effectiveAvg -= 20;
+                const settingStr = await getSetting('finish_deduction_weight', '20');
+                deductedAmount = parseFloat(settingStr) || 20;
+                effectiveAvg -= deductedAmount;
             }
             const avgRounded = Math.round(effectiveAvg);
             const status = calcStatus(effectiveAvg, product.min_weight, product.max_weight);
@@ -242,7 +246,7 @@ async function handleWeighStep(sock, msg, text, jid) {
             calcMsg += `Samples: ${samples.join(', ')}\n`;
             if (finishType) {
                 calcMsg += `Raw Average: ${rawAvgRounded}g\n`;
-                calcMsg += `Adjusted Average: *${avgRounded}g* (-20g for ${finishType})\n`;
+                calcMsg += `Adjusted Average: *${avgRounded}g* (-${deductedAmount}g for ${finishType})\n`;
             } else {
                 calcMsg += `Average: *${avgRounded}g*\n`;
             }
