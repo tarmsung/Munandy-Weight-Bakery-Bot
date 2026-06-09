@@ -11,6 +11,7 @@ const { generateMonthlyViabilityReport } = require('./vehicle/viabilityReport');
 const { getMonthlyRecords } = require('./db/records');
 const { analyzeMonthlyWeights } = require('./reports/monthlyWeightAnalyzer');
 const { generateMonthlyWeightPDF } = require('./reports/monthlyWeightPdfGenerator');
+const { generateMonthlySupervisorReport } = require('./handlers/monthlyReportHandler');
 
 // Folder to archive generated PDFs locally
 const REPORTS_DIR = path.join(__dirname, '..', 'reports');
@@ -320,6 +321,48 @@ async function runMonthlyWeightAnalysisReport(testDate = null) {
     }
 }
 
+async function runMonthlySupervisorReport(testDate = null) {
+    const sock = getSocket();
+    if (!sock) {
+        console.warn('⚠️  No active socket — skipping monthly supervisor report.');
+        return;
+    }
+
+    const adminNumsStr = process.env.ADMIN_NUMBERS || '';
+    const adminNums = adminNumsStr.split(',').map(n => n.trim()).filter(Boolean);
+
+    if (adminNums.length === 0) {
+        console.warn('⚠️  ADMIN_NUMBERS not set in .env — skipping monthly supervisor report.');
+        return;
+    }
+
+    // Determine the month and year to run for. 
+    // Usually, when run on the 10th of the month, we want to run for the *previous* month.
+    let dateToUse = testDate || new Date();
+    if (!testDate && dateToUse.getDate() <= 15) {
+        dateToUse = new Date(dateToUse.getFullYear(), dateToUse.getMonth() - 1, 15);
+    }
+    const month = dateToUse.getMonth() + 1; // 1-12
+    const year = dateToUse.getFullYear();
+
+    try {
+        console.log(`📊 Generating Monthly Supervisor Report for ${month}/${year}...`);
+        const reportText = await generateMonthlySupervisorReport(year, month);
+        
+        for (const num of adminNums) {
+            const jid = `${num}@s.whatsapp.net`;
+            await sock.sendMessage(jid, { text: reportText });
+            console.log(`✅ Sent monthly supervisor report to admin ${num}`);
+        }
+    } catch (err) {
+        console.error('❌ Failed to run monthly supervisor report:', err.message);
+        for (const num of adminNums) {
+            const jid = `${num}@s.whatsapp.net`;
+            await sock.sendMessage(jid, { text: `❌ Failed to generate Monthly Supervisor Report: ${err.message}` });
+        }
+    }
+}
+
 function startScheduler() {
     // End-of-Day Weight Report: 4:00 PM daily to admins
     const cronExpr = '0 16 * * *';
@@ -379,6 +422,20 @@ function startScheduler() {
         { timezone: 'Africa/Johannesburg' }
     );
     console.log(`⏰ Scheduler started — Monthly Weight Analysis at ${weightAnalysisCronExpr} (Africa/Johannesburg)`);
+
+    // ── Monthly Supervisor Analysis: 10th of every month at 9:10 AM ─────────────
+    const supervisorReportCronExpr = '10 9 10 * *';
+    cron.schedule(
+        supervisorReportCronExpr,
+        () => {
+            console.log('⏰ Running monthly supervisor report...');
+            runMonthlySupervisorReport().catch((err) =>
+                console.error('❌ Monthly supervisor report error:', err.message)
+            );
+        },
+        { timezone: 'Africa/Johannesburg' }
+    );
+    console.log(`⏰ Scheduler started — Monthly Supervisor Report at ${supervisorReportCronExpr} (Africa/Johannesburg)`);
 }
 
 module.exports = { 
