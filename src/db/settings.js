@@ -1,4 +1,4 @@
-const { supabase } = require('./supabase');
+const supabase = require('./supabase');
 
 /**
  * Get a global setting value by key.
