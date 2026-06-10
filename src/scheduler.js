@@ -445,5 +445,6 @@ module.exports = {
     checkMorningSubmissions, 
     runDailyFleetReport, 
     runMonthlyViabilityReport,
-    runMonthlyWeightAnalysisReport
+    runMonthlyWeightAnalysisReport,
+    runMonthlySupervisorReport
 };
