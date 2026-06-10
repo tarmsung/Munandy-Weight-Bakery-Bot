@@ -3,7 +3,7 @@ const { getSupervisorBranch } = require('../db/supervisors');
 const { insertSupervisorReport } = require('../db/supervisorReports');
 
 const QUESTIONS = [
-    { step: 'AWAITING_DATE',           key: 'date',           text: "Please enter the Date of this report (e.g., Today, or DD/MM/YYYY)." },
+    { step: 'AWAITING_DATE',           key: 'date',           text: "Please enter the Date of this report in *DD/MM/YYYY* format (e.g., 10/06/2026)." },
     { step: 'AWAITING_SHOP',           key: 'shop',           text: "Please provide your score (1-5) and commentary on the *Shop*." },
     { step: 'AWAITING_DELIVERY',       key: 'delivery',       text: "Please provide your score (1-5) and commentary on *Delivery*." },
     { step: 'AWAITING_PROCUREMENT',    key: 'procurement',    text: "Please provide your score (1-5) and commentary on *Procurement*." },
@@ -52,19 +52,20 @@ async function handleSupervisorReportStep(sock, msg, text, jid) {
 
     // Save the response for the current question
     if (currentQ.key === 'date') {
-        let dateVal = input;
-        if (input.toLowerCase() === 'today') {
-            dateVal = new Date().toISOString().split('T')[0];
-        } else {
-            // Assume DD/MM/YYYY, convert to YYYY-MM-DD
-            const parts = input.split('/');
-            if (parts.length === 3) {
-                dateVal = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            } else {
-                // If it fails, fallback to today
-                dateVal = new Date().toISOString().split('T')[0];
-            }
+        // Enforce strict DD/MM/YYYY format
+        const parts = input.split('/');
+        const isValid = parts.length === 3 &&
+            parts[0].length <= 2 && parts[1].length <= 2 && parts[2].length === 4 &&
+            !isNaN(Date.parse(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`));
+
+        if (!isValid) {
+            await sock.sendMessage(jid, {
+                text: `⚠️ Invalid date format. Please enter the date as *DD/MM/YYYY* (e.g., 10/06/2026).`
+            });
+            return true; // Stay on this step
         }
+
+        const dateVal = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         session.responses[currentQ.key] = dateVal;
     } else {
         let score = 3; // Default to 3
