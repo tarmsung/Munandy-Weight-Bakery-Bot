@@ -14,6 +14,7 @@ const { parseExpenseMessage } = require('../vehicle/expenseParser');
 const { getVehicle: checkVehicleExists } = require('../db/vehicles');
 const { saveVehicleExpense } = require('../db/expenses');
 const { sendEndOfDayReport, runDailyFleetReport, runMonthlyViabilityReport } = require('../scheduler');
+const { generateMonthlySupervisorReport } = require('./monthlyReportHandler');
 
 function getMessageText(msg) {
     return (
@@ -242,6 +243,21 @@ async function handleMessage(sock, msg) {
             } catch (err) {
                 console.error('[!testviability] Error:', err);
                 await sock.sendMessage(jid, { text: `❌ Failed to generate viability report: ${err.message}` });
+            }
+            return;
+        }
+
+        if (cmd === 'testsupervisor') {
+            await sock.sendMessage(jid, { text: `⏳ Generating Monthly Supervisor Report... Please wait.` });
+            try {
+                const now = new Date();
+                const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+                const month = now.getMonth() === 0 ? 12 : now.getMonth(); // previous month (1-indexed)
+                const reportText = await generateMonthlySupervisorReport(year, month);
+                await sock.sendMessage(jid, { text: reportText });
+            } catch (err) {
+                console.error('[testsupervisor] Error:', err);
+                await sock.sendMessage(jid, { text: `❌ Failed to generate Supervisor Report: ${err.message}` });
             }
             return;
         }
