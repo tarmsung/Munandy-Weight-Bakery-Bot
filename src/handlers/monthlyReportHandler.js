@@ -1,12 +1,13 @@
 const { getReportsByMonth } = require('../db/supervisorReports');
 
 const AREAS = [
-    'delivery', 'procurement', 'production', 'workers', 
+    'shop', 'delivery', 'procurement', 'production', 'workers', 
     'cashing_office', 'security', 'packing', 'hygiene'
 ];
 
 // Area mapping for display labels
 const AREA_LABELS = {
+    'shop': 'Shop',
     'delivery': 'Delivery',
     'procurement': 'Procurement',
     'production': 'Production',
@@ -46,14 +47,14 @@ async function generateMonthlySupervisorReport(year, month) {
         }
     });
 
-    // Accumulate scores
+    // Accumulate scores — null scores (N/A days) are simply skipped
     reports.forEach(r => {
         branchStats[r.branch].reportsCount++;
 
         AREAS.forEach(area => {
             const scoreKey = `${area}_score`;
             const score = r[scoreKey];
-            if (score) {
+            if (score !== null && score !== undefined) {
                 branchStats[r.branch].areaScores[area].sum += score;
                 branchStats[r.branch].areaScores[area].count++;
                 
@@ -68,10 +69,10 @@ async function generateMonthlySupervisorReport(year, month) {
 
     const branchNames = Object.keys(branchStats).sort();
     
-    // Calculate final scores
+    // Calculate final scores — areas with no active days get null percentage (truly unrated)
     for (const branch of branchNames) {
         let totalScoreSum = 0;
-        let totalScoreCount = 0;
+        let totalScoreMax = 0;
         
         AREAS.forEach(area => {
             const stat = branchStats[branch].areaScores[area];
@@ -79,14 +80,19 @@ async function generateMonthlySupervisorReport(year, month) {
                 // Percentage for the area
                 stat.percentage = Math.round((stat.sum / (stat.count * 5)) * 100);
                 totalScoreSum += stat.sum;
-                totalScoreCount += stat.count;
+                totalScoreMax += stat.count * 5;
             } else {
-                stat.percentage = 0;
+                stat.percentage = null; // Truly unrated — do not count as 0
             }
         });
         
-        branchStats[branch].overallPercentage = totalScoreCount > 0 ? Math.round((totalScoreSum / (totalScoreCount * 5)) * 100) : 0;
+        branchStats[branch].overallPercentage = totalScoreMax > 0 
+            ? Math.round((totalScoreSum / totalScoreMax) * 100) 
+            : null;
     }
+
+    // Helper: format a percentage that may be null
+    const fmtPct = (pct) => pct !== null ? `${pct}%` : 'Not Rated';
 
     // Build the Markdown Report
     let report = `📊 *MONTHLY OPERATIONS ANALYSIS REPORT*\n\n`;
@@ -100,16 +106,20 @@ async function generateMonthlySupervisorReport(year, month) {
         const stat = branchStats[branch];
         report += `🏢 *${branch}*\n`;
         report += `- Reports: ${stat.reportsCount}/${daysInMonth}\n`;
-        report += `- Operational Score: ${stat.overallPercentage}%\n`;
+        report += `- Operational Score: ${fmtPct(stat.overallPercentage)}\n`;
         report += `- Major Incidents: ${stat.majorIncidents}\n`;
-        report += `- Hygiene Compliance: ${stat.areaScores['hygiene'].percentage}%\n`;
-        report += `- Delivery Performance: ${stat.areaScores['delivery'].percentage}%\n\n`;
+        report += `- Hygiene Compliance: ${fmtPct(stat.areaScores['hygiene'].percentage)}\n`;
+        report += `- Delivery Performance: ${fmtPct(stat.areaScores['delivery'].percentage)}\n\n`;
     }
     report += `---\n\n`;
 
-    // 2. Department Performance Comparison
+    // 2. Department Performance Comparison — skip areas where ALL branches have no data
     report += `*2. Department Performance Comparison*\n\n`;
     AREAS.forEach(area => {
+        // Skip entirely if no branch graded this area this month
+        const hasAnyData = branchNames.some(b => branchStats[b].areaScores[area].percentage !== null);
+        if (!hasAnyData) return;
+
         let bestBranch = null;
         let bestScore = -1;
         let lowestBranch = null;
@@ -117,25 +127,31 @@ async function generateMonthlySupervisorReport(year, month) {
 
         branchNames.forEach(branch => {
             const score = branchStats[branch].areaScores[area].percentage;
+            if (score === null) return; // Skip unrated branches for this area
             if (score > bestScore) { bestScore = score; bestBranch = branch; }
             if (score < lowestScore) { lowestScore = score; lowestBranch = branch; }
         });
 
         report += `*${AREA_LABELS[area]}*\n`;
         report += `🥇 Best: ${bestBranch} (${bestScore}%)\n`;
-        report += `📉 Lowest: ${lowestBranch} (${lowestScore}%)\n\n`;
+        if (lowestBranch && lowestBranch !== bestBranch) {
+            report += `📉 Lowest: ${lowestBranch} (${lowestScore}%)\n\n`;
+        } else {
+            report += `\n`;
+        }
     });
     report += `---\n\n`;
 
     // 3. Monthly Rankings
     report += `*3. Monthly Rankings*\n\n`;
-    const rankings = branchNames.map(b => ({ name: b, score: branchStats[b].overallPercentage }))
-        .sort((a, b) => b.score - a.score);
+    const rankings = branchNames
+        .map(b => ({ name: b, score: branchStats[b].overallPercentage }))
+        .sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
 
     const medals = ['🥇', '🥈', '🥉'];
     rankings.forEach((r, idx) => {
-        const medal = medals[idx] || `${idx + 1}th`;
-        report += `${medal} *${r.name}* (${r.score}%)\n`;
+        const medal = medals[idx] || `${idx + 1}.`;
+        report += `${medal} *${r.name}* (${fmtPct(r.score)})\n`;
     });
 
     return report;

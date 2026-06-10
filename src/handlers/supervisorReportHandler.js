@@ -4,15 +4,15 @@ const { insertSupervisorReport } = require('../db/supervisorReports');
 
 const QUESTIONS = [
     { step: 'AWAITING_DATE',           key: 'date',           text: "Please enter the Date of this report in *DD/MM/YYYY* format (e.g., 10/06/2026)." },
-    { step: 'AWAITING_SHOP',           key: 'shop',           text: "Please provide your score (1-5) and commentary on the *Shop*." },
-    { step: 'AWAITING_DELIVERY',       key: 'delivery',       text: "Please provide your score (1-5) and commentary on *Delivery*." },
-    { step: 'AWAITING_PROCUREMENT',    key: 'procurement',    text: "Please provide your score (1-5) and commentary on *Procurement*." },
-    { step: 'AWAITING_PRODUCTION',     key: 'production',     text: "Please provide your score (1-5) and commentary on *Production*." },
-    { step: 'AWAITING_WORKERS',        key: 'workers',        text: "Please provide your score (1-5) and commentary on *Workers*." },
-    { step: 'AWAITING_CASHING_OFFICE', key: 'cashing_office', text: "Please provide your score (1-5) and commentary on the *Cashing Office*." },
-    { step: 'AWAITING_SECURITY',       key: 'security',       text: "Please provide your score (1-5) and commentary on *Security*." },
-    { step: 'AWAITING_PACKING',        key: 'packing',        text: "Please provide your score (1-5) and commentary on *Packing*." },
-    { step: 'AWAITING_HYGIENE',        key: 'hygiene',        text: "Please provide your score (1-5) and commentary on *Hygiene*." }
+    { step: 'AWAITING_SHOP',           key: 'shop',           text: "Please provide your score (1-5) and commentary on the *Shop*. (Or type *N/A*)" },
+    { step: 'AWAITING_DELIVERY',       key: 'delivery',       text: "Please provide your score (1-5) and commentary on *Delivery*. (Or type *N/A*)" },
+    { step: 'AWAITING_PROCUREMENT',    key: 'procurement',    text: "Please provide your score (1-5) and commentary on *Procurement*. (Or type *N/A*)" },
+    { step: 'AWAITING_PRODUCTION',     key: 'production',     text: "Please provide your score (1-5) and commentary on *Production*. (Or type *N/A*)" },
+    { step: 'AWAITING_WORKERS',        key: 'workers',        text: "Please provide your score (1-5) and commentary on *Workers*. (Or type *N/A*)" },
+    { step: 'AWAITING_CASHING_OFFICE', key: 'cashing_office', text: "Please provide your score (1-5) and commentary on the *Cashing Office*. (Or type *N/A*)" },
+    { step: 'AWAITING_SECURITY',       key: 'security',       text: "Please provide your score (1-5) and commentary on *Security*. (Or type *N/A*)" },
+    { step: 'AWAITING_PACKING',        key: 'packing',        text: "Please provide your score (1-5) and commentary on *Packing*. (Or type *N/A*)" },
+    { step: 'AWAITING_HYGIENE',        key: 'hygiene',        text: "Please provide your score (1-5) and commentary on *Hygiene*. (Or type *N/A*)" }
 ];
 
 async function startSupervisorReport(sock, jid, senderNumber) {
@@ -68,19 +68,23 @@ async function handleSupervisorReportStep(sock, msg, text, jid) {
         const dateVal = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         session.responses[currentQ.key] = dateVal;
     } else {
-        let score = 3; // Default to 3
-        let comment = input;
-        
-        const match = input.match(/^(\d)(.*)/s);
-        if (match) {
-            const parsedScore = parseInt(match[1], 10);
-            if (parsedScore >= 1 && parsedScore <= 5) {
-                score = parsedScore;
-                comment = match[2].trim();
+        if (input.toLowerCase() === 'n/a') {
+            session.responses[currentQ.key] = { score: 'N/A', comment: 'N/A' };
+        } else {
+            let score = 3; // Default to 3
+            let comment = input;
+            
+            const match = input.match(/^(\d)(.*)/s);
+            if (match) {
+                const parsedScore = parseInt(match[1], 10);
+                if (parsedScore >= 1 && parsedScore <= 5) {
+                    score = parsedScore;
+                    comment = match[2].trim();
+                }
             }
+            
+            session.responses[currentQ.key] = { score, comment };
         }
-        
-        session.responses[currentQ.key] = { score, comment };
     }
 
     // Check if there is a next question
@@ -122,7 +126,11 @@ async function finalizeReport(sock, jid, session) {
 
     for (const area of areas) {
         const { score, comment } = responses[area.key];
-        reportText += `${area.label} [Score: ${score}/5]\n${comment}\n\n`;
+        if (score === 'N/A') {
+            reportText += `${area.label} [N/A — Not done today]\n\n`;
+        } else {
+            reportText += `${area.label} [Score: ${score}/5]\n${comment}\n\n`;
+        }
     }
 
     try {
@@ -131,23 +139,23 @@ async function finalizeReport(sock, jid, session) {
             report_date: responses.date,
             supervisor_number: senderNumber,
             branch: branch,
-            shop_score: responses.shop.score,
+            shop_score: responses.shop.score === 'N/A' ? null : responses.shop.score,
             shop_comment: responses.shop.comment,
-            delivery_score: responses.delivery.score,
+            delivery_score: responses.delivery.score === 'N/A' ? null : responses.delivery.score,
             delivery_comment: responses.delivery.comment,
-            procurement_score: responses.procurement.score,
+            procurement_score: responses.procurement.score === 'N/A' ? null : responses.procurement.score,
             procurement_comment: responses.procurement.comment,
-            production_score: responses.production.score,
+            production_score: responses.production.score === 'N/A' ? null : responses.production.score,
             production_comment: responses.production.comment,
-            workers_score: responses.workers.score,
+            workers_score: responses.workers.score === 'N/A' ? null : responses.workers.score,
             workers_comment: responses.workers.comment,
-            cashing_office_score: responses.cashing_office.score,
+            cashing_office_score: responses.cashing_office.score === 'N/A' ? null : responses.cashing_office.score,
             cashing_office_comment: responses.cashing_office.comment,
-            security_score: responses.security.score,
+            security_score: responses.security.score === 'N/A' ? null : responses.security.score,
             security_comment: responses.security.comment,
-            packing_score: responses.packing.score,
+            packing_score: responses.packing.score === 'N/A' ? null : responses.packing.score,
             packing_comment: responses.packing.comment,
-            hygiene_score: responses.hygiene.score,
+            hygiene_score: responses.hygiene.score === 'N/A' ? null : responses.hygiene.score,
             hygiene_comment: responses.hygiene.comment
         };
         await insertSupervisorReport(dbRecord);
