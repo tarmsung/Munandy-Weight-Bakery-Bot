@@ -82,6 +82,12 @@ async function handleSupervisorReportStep(sock, msg, text, jid) {
                     comment = match[2].trim();
                 }
             }
+
+            // Auto-fill comment if none provided, based on score range
+            if (!comment) {
+                const autoComments = { 1: '⚠️ Very Poor', 2: '⚠️ Poor', 3: '✅ Average', 4: '✅ Good', 5: '✅ Excellent' };
+                comment = autoComments[score] || '';
+            }
             
             session.responses[currentQ.key] = { score, comment };
         }
