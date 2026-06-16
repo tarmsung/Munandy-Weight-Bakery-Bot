@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS vehicle_expenses (
     branch TEXT,
     expense_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     source_message TEXT,
-    reporter_jid TEXT
+    reporter_jid TEXT,
+    message_id TEXT
 );
 
 -- ============================================================

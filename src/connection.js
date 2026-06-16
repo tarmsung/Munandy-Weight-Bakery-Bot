@@ -10,6 +10,7 @@ const path = require('path');
 const { handleMessage } = require('./handlers/messageHandler');
 const { setSocket } = require('./state');
 const qrcode = require('qrcode-terminal');
+const { deleteVehicleExpenseByMessageId } = require('./db/expenses');
 
 const AUTH_FOLDER = path.join(__dirname, '..', 'auth_info_baileys');
 
@@ -58,6 +59,25 @@ async function connectToWhatsApp() {
     if (type !== 'notify') return;
     for (const msg of messages) {
       if (!msg.message) continue;
+
+      // Handle message deletion (REVOKE)
+      if (msg.message.protocolMessage && msg.message.protocolMessage.type === 0) { // 0 is REVOKE
+          const deletedMessageId = msg.message.protocolMessage.key.id;
+          try {
+              const deletedExpense = await deleteVehicleExpenseByMessageId(deletedMessageId);
+              if (deletedExpense) {
+                  const expenseGroupJid = process.env.EXPENSE_GROUP_JID;
+                  if (expenseGroupJid) {
+                      await sock.sendMessage(expenseGroupJid, {
+                          text: `🗑️ *Expense Deleted*\nThe expense for *${deletedExpense.vehicle_registration}* ($${deletedExpense.amount}) was deleted because the original message was removed.`
+                      });
+                  }
+              }
+          } catch (err) {
+              console.error('Error handling message revocation:', err.message);
+          }
+          continue;
+      }
       try {
         await handleMessage(sock, msg);
       } catch (err) {

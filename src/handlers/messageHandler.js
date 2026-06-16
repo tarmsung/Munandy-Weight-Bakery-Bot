@@ -133,7 +133,8 @@ async function handleMessage(sock, msg) {
                         description: data.description,
                         branch: data.branch,
                         source_message: text,
-                        reporter_jid: sender
+                        reporter_jid: sender,
+                        message_id: msg.key.id
                     });
                     await sock.sendMessage(jid, { 
                         text: `✅ Logged expense for *${data.vehicle_registration}* ($${data.amount.toFixed(2)})\nDescription: ${data.description}`

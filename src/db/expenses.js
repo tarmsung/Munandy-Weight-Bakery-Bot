@@ -1,6 +1,6 @@
 const supabase = require('./supabase');
 
-async function saveVehicleExpense({ vehicle_registration, amount, currency, description, branch, source_message, reporter_jid }) {
+async function saveVehicleExpense({ vehicle_registration, amount, currency, description, branch, source_message, reporter_jid, message_id }) {
     try {
         const { data, error } = await supabase
             .from('vehicle_expenses')
@@ -12,7 +12,8 @@ async function saveVehicleExpense({ vehicle_registration, amount, currency, desc
                 branch,
                 expense_date: new Date().toISOString(),
                 source_message,
-                reporter_jid
+                reporter_jid,
+                message_id
             }])
             .select('id')
             .single();
@@ -153,10 +154,39 @@ async function getExpensesByDateRange(startDateStr, endDateStr, branch = null) {
     }
 }
 
+/**
+ * Deletes a vehicle expense by its associated WhatsApp message ID.
+ * @param {string} messageId 
+ * @returns The deleted record data if successful, null otherwise.
+ */
+async function deleteVehicleExpenseByMessageId(messageId) {
+    try {
+        const { data, error } = await supabase
+            .from('vehicle_expenses')
+            .delete()
+            .eq('message_id', messageId)
+            .select('*')
+            .single();
+
+        if (error) {
+            // Supabase returns an error if no rows are found when using .single()
+            if (error.code === 'PGRST116') {
+                return null; // No rows deleted
+            }
+            throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error in deleteVehicleExpenseByMessageId:', err);
+        throw err;
+    }
+}
+
 module.exports = {
     saveVehicleExpense,
     getMonthlyExpenses,
     getMonthlyDistances,
     getRecentExpenses,
-    getExpensesByDateRange
+    getExpensesByDateRange,
+    deleteVehicleExpenseByMessageId
 };
