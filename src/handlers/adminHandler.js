@@ -7,8 +7,10 @@ const { getVehicleServiceStatus, logServiceCompleted, recordServiceMileage } = r
 const { getAllRoutes, addRoute, updateRoute } = require('../db/routes');
 const { getSession, setSession, clearSession } = require('../sessions/sessionManager');
 const { getRecentExpenses, getExpensesByDateRange } = require('../db/expenses');
+const { getJobCardsByDateRange } = require('../db/jobCards');
 const { runMonthlyViabilityReport } = require('../scheduler');
 const { generateExpenseImageReport } = require('../reports/expenseImageGenerator');
+const { generateJobCardImageReport, parsePrice } = require('../reports/jobCardImageGenerator');
 
 const NUMBER_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
 
@@ -40,7 +42,8 @@ const ADMIN_TRANSPORT_MENU_TEXT =
     `7️⃣ Edit Route\n` +
     `8️⃣ Edit Driver\n` +
     `9️⃣ Edit Vehicle\n` +
-    `🔟 Expenses\n\n` +
+    `🔟 Expenses\n` +
+    `1️⃣1️⃣ Job Cards\n\n` +
     `_Reply with a number. Type *back* at any step to return to the main menu._`;
 
 async function startAdminMenu(sock, jid, senderNumber) {
@@ -265,8 +268,17 @@ async function handleAdminStep(sock, msg, text, jid) {
                         `2️⃣ All\n\n` +
                         `_Reply with a number or type *back* to return._`
                     );
+                } else if (choice === 11) {
+                    setSession(jid, { ...session, step: 'ADMIN_JC_BRANCH_SELECTION' });
+                    await reply(
+                        `🧾 *Job Cards Report*\n\n` +
+                        `Select the branch you want to view job cards for:\n\n` +
+                        `1️⃣ Choose Branch\n` +
+                        `2️⃣ All\n\n` +
+                        `_Reply with a number or type *back* to return._`
+                    );
                 } else {
-                    await reply(`❌ Invalid choice. Please reply with 1–10.`);
+                    await reply(`❌ Invalid choice. Please reply with 1–11.`);
                 }
                 return true;
             }
@@ -391,6 +403,130 @@ async function handleAdminStep(sock, msg, text, jid) {
 
                 } catch (err) {
                     await backToMenu(sock, jid, session, reply, `❌ *Failed to generate report:*\n${err.message}\n\n`);
+                }
+                return true;
+            }
+
+            // --- Job Cards Report ---
+            case 'ADMIN_JC_BRANCH_SELECTION': {
+                const choice = parseInt(input, 10);
+                if (choice === 1) {
+                    setSession(jid, { ...session, step: 'ADMIN_JC_BRANCH_PICK' });
+                    await reply(
+                        `🏢 *Select Branch*\n\n` +
+                        `1️⃣ Harare\n` +
+                        `2️⃣ Mutare\n` +
+                        `3️⃣ Bulawayo\n\n` +
+                        `_Reply with a number or type *back* to return._`
+                    );
+                } else if (choice === 2) {
+                    setSession(jid, { ...session, step: 'ADMIN_JC_START_DATE', jcBranch: 'all' });
+                    await reply(
+                        `🧾 *Job Cards Report - All Branches*\n\n` +
+                        `Please enter the *Start Date* for the report in the format *dd/mm/yyyy* (e.g. 01/04/2026).\n\n` +
+                        `_Type *back* to return._`
+                    );
+                } else {
+                    await reply(`❌ Invalid choice. Please reply with 1 or 2.`);
+                }
+                return true;
+            }
+
+            case 'ADMIN_JC_BRANCH_PICK': {
+                const branches = { 1: 'Harare', 2: 'Mutare', 3: 'Bulawayo' };
+                const choice = parseInt(input, 10);
+                const branch = branches[choice];
+                if (!branch) {
+                    await reply(`❌ Invalid choice. Reply with 1, 2, or 3.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_JC_START_DATE', jcBranch: branch });
+                await reply(
+                    `🧾 *Job Cards Report - ${branch}*\n\n` +
+                    `Please enter the *Start Date* for the report in the format *dd/mm/yyyy* (e.g. 01/04/2026).\n\n` +
+                    `_Type *back* to return._`
+                );
+                return true;
+            }
+
+            case 'ADMIN_JC_START_DATE': {
+                // Validate dd/mm/yyyy
+                const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+                const match = input.match(dateRegex);
+                if (!match) {
+                    await reply(`❌ Invalid format. Please enter the date exactly like *dd/mm/yyyy* (e.g. 01/04/2026).\n\n_Type *back* to return._`);
+                    return true;
+                }
+                // Construct ISO compatible start string (YYYY-MM-DD)
+                const startStr = `${match[3]}-${match[2]}-${match[1]}`;
+                if (isNaN(Date.parse(startStr))) {
+                    await reply(`❌ Invalid date. Please try again.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                setSession(jid, { ...session, step: 'ADMIN_JC_END_DATE', tempStartDateStr: startStr, tempStartDateDisplay: input });
+                await reply(`Start Date: *${input}*\n\nPlease enter the *End Date* in the format *dd/mm/yyyy* (e.g. 30/04/2026):`);
+                return true;
+            }
+
+            case 'ADMIN_JC_END_DATE': {
+                const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+                const match = input.match(dateRegex);
+                if (!match) {
+                    await reply(`❌ Invalid format. Please enter the date exactly like *dd/mm/yyyy*.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                const endStr = `${match[3]}-${match[2]}-${match[1]}`;
+                if (isNaN(Date.parse(endStr))) {
+                    await reply(`❌ Invalid date. Please try again.\n\n_Type *back* to return._`);
+                    return true;
+                }
+                
+                // Compare dates
+                if (new Date(endStr) < new Date(session.tempStartDateStr)) {
+                     await reply(`❌ End Date cannot be before Start Date. Please enter a valid End Date.\n\n_Type *back* to return._`);
+                     return true;
+                }
+
+                const branch = session.jcBranch || 'all';
+                const branchDisplay = branch === 'all' ? 'All Branches' : branch;
+
+                // Map human-readable branch names to database codes
+                const branchCodes = { 'Harare': 'MH', 'Mutare': 'MM', 'Bulawayo': 'MB' };
+                const dbBranch = branch === 'all' ? 'all' : branchCodes[branch];
+
+                await reply(`⏳ *Fetching ${branchDisplay} job cards for ${session.tempStartDateDisplay} to ${input}...* Please wait.`);
+
+                try {
+                    const jobCards = await getJobCardsByDateRange(session.tempStartDateStr, endStr, dbBranch);
+                    
+                    if (!jobCards || jobCards.length === 0) {
+                        await backToMenu(sock, jid, session, reply, `📭 No job cards were found for *${branchDisplay}* between *${session.tempStartDateDisplay}* and *${input}*.\n\n`);
+                        return true;
+                    }
+
+                    // Calculate total
+                    const totalAmount = jobCards.reduce((sum, jc) => sum + parsePrice(jc.price), 0);
+                    
+                    // Generate Image
+                    const imageBuffer = await generateJobCardImageReport(
+                        jobCards,
+                        session.tempStartDateDisplay,
+                        input,
+                        totalAmount,
+                        branchDisplay
+                    );
+
+                    // Send Image
+                    await sock.sendMessage(jid, {
+                        image: imageBuffer,
+                        caption: `🧾 *Job Cards Report - ${branchDisplay}*\nFrom: ${session.tempStartDateDisplay}\nTo: ${input}\n\nTotal Cost: *$${totalAmount.toFixed(2)}*\n\n_Returning to main menu..._`
+                    });
+
+                    // Reset session back to menu silently
+                    setSession(jid, { step: 'ADMIN_MENU', senderNumber: session.senderNumber });
+
+                } catch (err) {
+                    await backToMenu(sock, jid, session, reply, `❌ *Failed to generate job cards report:*\n${err.message}\n\n`);
                 }
                 return true;
             }
