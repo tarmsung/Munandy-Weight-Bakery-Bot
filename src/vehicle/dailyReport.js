@@ -105,8 +105,8 @@ async function runDailyFleetReport(isManual = false) {
         };
 
         // Step 4: Generate AI analysis via Claude
-        console.log(`[${new Date().toISOString()}] 🤖 Generating Claude AI analysis...`);
-        reportData.suggestions = await getClaudeAnalysis(reportData);
+        console.log(`[${new Date().toISOString()}] 🤖 Generating Claude AI structured analysis...`);
+        reportData.aiInsights = await getClaudeAnalysis(reportData);
 
         // Step 5: Assemble message
         const message = buildFleetReportMessage(reportData, reportDate);
