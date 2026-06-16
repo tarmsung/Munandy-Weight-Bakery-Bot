@@ -1,4 +1,4 @@
-const { getDriverByJobId } = require('../db/vehicles');
+const { getDriverByJobId, lookupVehicle } = require('../db/vehicles');
 const { saveJobCard } = require('../db/jobCards');
 
 /**
@@ -75,16 +75,17 @@ async function handleJobCardMessage(sock, msg, text, senderJid) {
         console.error('Failed to save Job Card to database:', err);
     }
 
-    // Format the forwarded message
-    const formattedMessage = `*JOB CARD*\n` +
-        `*Vehicle*: ${parsedData.vehicle.toUpperCase()}\n` +
-        `*Date*: ${parsedData.date || 'N/A'}\n` +
-        `*Job*: ${parsedData.job}\n` +
-        `*Fuel*: ${parsedData.fuel || 'N/A'}\n` +
-        `*Price*: ${parsedData.price || 'N/A'}\n` +
-        `*Time Out*: ${parsedData.timeOut || 'N/A'}\n` +
-        `*Time In*: ${parsedData.timeIn || 'N/A'}\n` +
-        `*Driver*: ${driver.name} (ID: ${driverJobId})`;
+    // Fetch Vehicle Details
+    const vehicleReg = parsedData.vehicle.toUpperCase();
+    const vehicle = await lookupVehicle(vehicleReg);
+    const vehicleDisplay = vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registration})` : vehicleReg;
+
+    // Format the forwarded message as a receipt
+    const formattedMessage = `🧾 *JOB CARD RECEIPT*\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `👤 *Driver:* ${driver.name}\n` +
+        `🚐 *Vehicle:* ${vehicleDisplay}\n` +
+        `━━━━━━━━━━━━━━━━━━`;
 
     const targetGroup = process.env.JOB_CARD_GROUP_JID;
     if (!targetGroup) {
@@ -96,10 +97,13 @@ async function handleJobCardMessage(sock, msg, text, senderJid) {
     }
 
     try {
-        await sock.sendMessage(targetGroup, { text: formattedMessage });
+        // Send confirmation first
         await sock.sendMessage(senderJid, { 
-            text: `✅ Job Card successfully verified and sent to the group!` 
+            text: `✅ Job Card successfully verified and saved!` 
         }, { quoted: msg });
+
+        // Then send the receipt to the group
+        await sock.sendMessage(targetGroup, { text: formattedMessage });
     } catch (err) {
         console.error('Failed to forward Job Card to group:', err);
         await sock.sendMessage(senderJid, { 
