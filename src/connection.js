@@ -11,6 +11,9 @@ const { handleMessage } = require('./handlers/messageHandler');
 const { setSocket } = require('./state');
 const qrcode = require('qrcode-terminal');
 const { deleteVehicleExpenseByMessageId } = require('./db/expenses');
+const { deleteJobCardByMessageId } = require('./db/jobCards');
+const { deleteInspectionReportByMessageId } = require('./db/vehicles');
+const { deleteRouteReportByMessageId } = require('./db/routes');
 
 const AUTH_FOLDER = path.join(__dirname, '..', 'auth_info_baileys');
 
@@ -72,6 +75,40 @@ async function connectToWhatsApp() {
                           text: `🗑️ *Expense Deleted*\nThe expense for *${deletedExpense.vehicle_registration}* ($${deletedExpense.amount}) was deleted because the original message was removed.`
                       });
                   }
+                  continue;
+              }
+
+              const deletedJobCard = await deleteJobCardByMessageId(deletedMessageId);
+              if (deletedJobCard) {
+                  const jobCardGroupJid = process.env.JOB_CARD_GROUP_JID;
+                  if (jobCardGroupJid) {
+                      await sock.sendMessage(jobCardGroupJid, {
+                          text: `🗑️ *Job Card Deleted*\nThe Job Card for *${deletedJobCard.vehicle_registration}* was deleted because the original message was removed.`
+                      });
+                  }
+                  continue;
+              }
+
+              const deletedInspection = await deleteInspectionReportByMessageId(deletedMessageId);
+              if (deletedInspection) {
+                  const notifyGroupJid = process.env.NOTIFY_GROUP_JID;
+                  if (notifyGroupJid) {
+                      await sock.sendMessage(notifyGroupJid, {
+                          text: `🗑️ *Inspection Report Deleted*\nThe inspection report for *${deletedInspection.vehicle_registration}* was deleted because the report message was removed.`
+                      });
+                  }
+                  continue;
+              }
+
+              const deletedRoute = await deleteRouteReportByMessageId(deletedMessageId);
+              if (deletedRoute) {
+                  const notifyGroupJid = process.env.NOTIFY_GROUP_JID;
+                  if (notifyGroupJid) {
+                      await sock.sendMessage(notifyGroupJid, {
+                          text: `🗑️ *Route Report Deleted*\nA route report was deleted because the report message was removed.`
+                      });
+                  }
+                  continue;
               }
           } catch (err) {
               console.error('Error handling message revocation:', err.message);

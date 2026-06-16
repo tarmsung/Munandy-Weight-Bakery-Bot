@@ -160,6 +160,26 @@ async function updateReport(id, type, updateData) {
     }
 }
 
+async function deleteInspectionReportByMessageId(messageId) {
+    try {
+        const { data, error } = await supabase
+            .from('inspection_reports')
+            .delete()
+            .eq('message_id', messageId)
+            .select('*')
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error in deleteInspectionReportByMessageId:', err);
+        throw err;
+    }
+}
+
 async function getDriverById(id) {
     try {
         const { data, error } = await supabase
@@ -348,5 +368,6 @@ module.exports = {
     addVehicle,
     updateVehicle,
     deleteVehicle,
-    getVehicle
+    getVehicle,
+    deleteInspectionReportByMessageId
 };

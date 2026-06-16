@@ -421,15 +421,16 @@ async function sendBriefing(sock, jid) {
  */
 async function finalizeRouteReport(sock, jid, session) {
     try {
+        let reportId = session.editingReportId;
         if (session.isEditing) {
             // UPDATE existing report
-            await db.updateReport(session.editingReportId, 'route', {
+            await db.updateReport(reportId, 'route', {
                 vehicle_routes: session.vehicleRoutes
             });
-            console.log(`Route report ${session.editingReportId} UPDATED by driver ${session.driverID}`);
+            console.log(`Route report ${reportId} UPDATED by driver ${session.driverID}`);
         } else {
             // INSERT new report
-            await db.saveRouteReport(session.driverID, session.vehicleRoutes, jid);
+            reportId = await db.saveRouteReport(session.driverID, session.vehicleRoutes, jid);
             console.log(`Route report submitted by driver ${session.driverID}`);
 
             // ── Service KM Accumulation ────────────────────────
@@ -445,11 +446,15 @@ async function finalizeRouteReport(sock, jid, session) {
             }
         }
 
-        await sendRouteReportToGroup(sock, {
+        const sentMsg = await sendRouteReportToGroup(sock, {
             driverName:    session.driverName,
             vehicleRoutes: session.vehicleRoutes,
             isEdited:      session.isEditing
         });
+
+        if (sentMsg && sentMsg.key && sentMsg.key.id) {
+            await db.updateReport(reportId, 'route', { message_id: sentMsg.key.id });
+        }
 
         const successMsg = session.isEditing 
             ? 'Report updated successfully ✅' 

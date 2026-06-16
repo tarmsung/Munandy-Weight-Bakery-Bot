@@ -112,11 +112,32 @@ async function updateRoute(id, updates) {
     }
 }
 
+async function deleteRouteReportByMessageId(messageId) {
+    try {
+        const { data, error } = await supabase
+            .from('route_reports')
+            .delete()
+            .eq('message_id', messageId)
+            .select('*')
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null;
+            throw error;
+        }
+        return data;
+    } catch (err) {
+        console.error('Error in deleteRouteReportByMessageId:', err);
+        throw err;
+    }
+}
+
 module.exports = {
     getRouteReporter,
     getDriverById,
     getAllRoutes,
     saveRouteReport,
     addRoute,
-    updateRoute
+    updateRoute,
+    deleteRouteReportByMessageId
 };

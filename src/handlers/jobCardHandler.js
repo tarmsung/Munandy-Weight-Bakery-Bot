@@ -1,4 +1,5 @@
 const { getDriverByJobId } = require('../db/vehicles');
+const { saveJobCard } = require('../db/jobCards');
 
 /**
  * Parses a Job Card message.
@@ -54,6 +55,24 @@ async function handleJobCardMessage(sock, msg, text, senderJid) {
             text: `❌ Invalid Driver ID: *${driverJobId}*. Please ensure you use the correct 2-digit Job ID.` 
         }, { quoted: msg });
         return;
+    }
+
+    // Save to Database
+    try {
+        await saveJobCard({
+            vehicle_registration: parsedData.vehicle.toUpperCase(),
+            job_date: parsedData.date || null,
+            description: parsedData.job,
+            fuel: parsedData.fuel || null,
+            price: parsedData.price || null,
+            time_out: parsedData.timeOut || null,
+            time_in: parsedData.timeIn || null,
+            driver_job_id: driverJobId,
+            reporter_jid: senderJid,
+            message_id: msg.key.id
+        });
+    } catch (err) {
+        console.error('Failed to save Job Card to database:', err);
     }
 
     // Format the forwarded message

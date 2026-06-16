@@ -62,14 +62,18 @@ async function finalizeSubmission(sock, jid, session) {
                 comments:     session.comments || '',
                 reporterJid:  jid
             };
-            await saveInspectionReport(reportData);
+            const reportId = await saveInspectionReport(reportData);
             
             // Save odometer reading to vehicle table
             if (session.current_mileage > 0) {
                 await updateVehicle(session.vehicleReg, { current_mileage: session.current_mileage });
             }
 
-            await reportHelper.sendReportToGroup(sock, session);
+            const sentMsg = await reportHelper.sendReportToGroup(sock, session);
+            if (sentMsg && sentMsg.key && sentMsg.key.id) {
+                await updateReport(reportId, 'van', { message_id: sentMsg.key.id });
+            }
+            
             await sock.sendMessage(jid, { text: "Report submitted successfully. Have a safe trip! 🚗" });
         }
     } catch (err) {

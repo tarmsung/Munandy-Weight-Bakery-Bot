@@ -57,10 +57,12 @@ async function sendReportToGroup(sock, sessionData) {
 
     try {
         console.log('Sending report text to group...');
-        await sock.sendMessage(notifyJid, { text: reportText });
+        const sentMsg = await sock.sendMessage(notifyJid, { text: reportText });
         console.log('Report successfully sent to group.');
+        return sentMsg;
     } catch (err) {
         console.error('Failed to send report text to group:', err);
+        return null;
     }
 }
 

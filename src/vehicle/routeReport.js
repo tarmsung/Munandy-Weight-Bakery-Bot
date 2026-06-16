@@ -173,19 +173,24 @@ async function sendRouteReportToGroup(sock, sessionData) {
         });
 
         console.log('Sending route report image to group...');
-        await getSocket().sendMessage(notifyJid, { 
+        const sentMsg = await getSocket().sendMessage(notifyJid, { 
             image: imageBuffer,
             caption: `🗺️ Route Report submitted by ${sessionData.driverName}`
         });
         console.log('Route report image sent to group successfully.');
+        return sentMsg;
     } catch (err) {
         console.error('Failed to send route report image to group:', err);
         
         // Fallback to text if image fails
         const fallbackText = `🗺️ Route Report\nReporter: ${sessionData.driverName}\nDate: ${new Date().toLocaleString()}\n(Image generation failed: ${err.message})`;
         try {
-            await getSocket().sendMessage(notifyJid, { text: fallbackText });
-        } catch (e) { console.error('Secondary error:', e.message); }
+            const sentMsg = await getSocket().sendMessage(notifyJid, { text: fallbackText });
+            return sentMsg;
+        } catch (e) { 
+            console.error('Secondary error:', e.message); 
+            return null;
+        }
     }
 }
 
