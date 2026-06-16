@@ -4,7 +4,7 @@ async function lookupDriverAndVehicle(driverId, vehicleReg) {
     try {
         const { data: driver, error: driverError } = await supabase
             .from('drivers')
-            .select('id, name, branch')
+            .select('id, name, branch, job_id')
             .eq('id', driverId)
             .single();
 
@@ -164,7 +164,7 @@ async function getDriverById(id) {
     try {
         const { data, error } = await supabase
             .from('drivers')
-            .select('id, name, branch')
+            .select('id, name, branch, job_id')
             .eq('id', id)
             .single();
 
@@ -176,11 +176,27 @@ async function getDriverById(id) {
     }
 }
 
-async function addDriver(id, name, branch) {
+async function getDriverByJobId(jobId) {
     try {
         const { data, error } = await supabase
             .from('drivers')
-            .insert([{ id, name, branch }])
+            .select('id, name, branch, job_id')
+            .eq('job_id', jobId)
+            .single();
+
+        if (error || !data) return null;
+        return data;
+    } catch (err) {
+        console.error('Error in getDriverByJobId:', err);
+        throw err;
+    }
+}
+
+async function addDriver(id, name, branch, job_id) {
+    try {
+        const { data, error } = await supabase
+            .from('drivers')
+            .insert([{ id, name, branch, job_id }])
             .select()
             .single();
 
@@ -324,6 +340,7 @@ module.exports = {
     getReportById,
     updateReport,
     getDriverById,
+    getDriverByJobId,
     addDriver,
     updateDriver,
     deleteDriver,

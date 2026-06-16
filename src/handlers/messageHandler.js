@@ -156,6 +156,13 @@ async function handleMessage(sock, msg) {
         }
     }
 
+    // ── Job Card Interception ──────────────────────────────────────────────────
+    if (cmdRaw.startsWith('job card')) {
+        const { handleJobCardMessage } = require('./jobCardHandler');
+        await handleJobCardMessage(sock, msg, text, jid);
+        return;
+    }
+
     // ── Global Command Override (Break out of sessions) ────────────────────────
     if (['cancel', 'weigh', '/weigh', '!weigh', 'today', '/today', '!today', 'ping', '!ping', 'admin', 'delete', '/delete', '!delete', 'van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit', 'super', '/super', '!super'].includes(cmd)) {
         if (hasSession(jid)) {
