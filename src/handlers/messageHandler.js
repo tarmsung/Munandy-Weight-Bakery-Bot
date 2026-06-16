@@ -76,7 +76,8 @@ async function handleMessage(sock, msg) {
     }
 
     const cmdRaw = text.toLowerCase();
-    const isPublicCmd = ['van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmdRaw);
+    let isPublicCmd = ['van', '/van', '!van', 'route', '/route', '!route', 'edit', '/edit', '!edit'].includes(cmdRaw);
+    if (cmdRaw.startsWith('job card')) isPublicCmd = true;
     
     let inAllowedSession = false;
     if (hasSession(jid)) {
