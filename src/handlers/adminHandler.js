@@ -490,9 +490,8 @@ async function handleAdminStep(sock, msg, text, jid) {
                 const branch = session.jcBranch || 'all';
                 const branchDisplay = branch === 'all' ? 'All Branches' : branch;
 
-                // Map human-readable branch names to database codes
-                const branchCodes = { 'Harare': 'MH', 'Mutare': 'MM', 'Bulawayo': 'MB' };
-                const dbBranch = branch === 'all' ? 'all' : branchCodes[branch];
+                // Job cards filter by vehicle branch, which stores full names ('Harare', 'Mutare', 'Bulawayo')
+                const dbBranch = branch === 'all' ? 'all' : branch;
 
                 await reply(`⏳ *Fetching ${branchDisplay} job cards for ${session.tempStartDateDisplay} to ${input}...* Please wait.`);
 

@@ -156,7 +156,7 @@ Rules:
         console.log(`[${new Date().toISOString()}] 🤖 Calling Claude AI for structured fleet analysis...`);
 
         const message = await client.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
+            model: 'claude-sonnet-4-6',
             max_tokens: 400,
             temperature: 0.2,
             messages: [
