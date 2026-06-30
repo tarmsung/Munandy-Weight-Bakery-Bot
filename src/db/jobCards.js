@@ -54,26 +54,46 @@ async function deleteJobCardByMessageId(messageId) {
 }
 
 /**
+ * Parses a DD/MM/YYYY string into a Date object (midnight UTC).
+ * Returns null if the string is missing or unparseable.
+ */
+function parseDDMMYYYY(str) {
+    if (!str) return null;
+    const parts = str.trim().split('/');
+    if (parts.length !== 3) return null;
+    const [day, month, year] = parts.map(Number);
+    if (!day || !month || !year) return null;
+    return new Date(Date.UTC(year, month - 1, day));
+}
+
+/**
  * Fetches Job Cards within a specific date range, enriched with vehicle branch info.
- * @param {string} startDateStr - e.g. 2026-04-01
- * @param {string} endDateStr - e.g. 2026-04-30
- * @param {string} branch - (Optional) Filter by branch code 'MH', 'MM', 'MB' or 'all'
+ * Filters by the job_date field on the card (DD/MM/YYYY), NOT the submission timestamp.
+ * @param {string} startDateStr - e.g. 2026-04-01 (YYYY-MM-DD)
+ * @param {string} endDateStr   - e.g. 2026-04-30 (YYYY-MM-DD)
+ * @param {string|null} branch  - Optional branch code: 'MH', 'MM', 'MB', or null/'all'
  */
 async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
-    // We filter using job_date or created_at. However, job_date is TEXT in DD/MM/YYYY.
-    // created_at is timestamp. It's safer to filter by created_at.
-    const startIso = `${startDateStr}T00:00:00.000Z`;
-    const endIso = `${endDateStr}T23:59:59.999Z`;
+    // Parse range boundaries (YYYY-MM-DD → Date at midnight UTC)
+    const startDate = new Date(`${startDateStr}T00:00:00.000Z`);
+    const endDate   = new Date(`${endDateStr}T23:59:59.999Z`);
 
     try {
+        // Fetch all job cards — we filter by job_date in JS because it is stored
+        // as DD/MM/YYYY text, which cannot be reliably range-queried in Postgres.
         const { data, error } = await supabase
             .from('job_cards')
             .select('*')
-            .gte('created_at', startIso)
-            .lte('created_at', endIso)
-            .order('created_at', { ascending: true });
+            .order('job_date', { ascending: true });
 
         if (error) throw error;
+
+        // Filter by the date written on the job card itself
+        const filtered = data.filter(jc => {
+            const jobDate = parseDDMMYYYY(jc.job_date);
+            if (!jobDate) return false;
+            return jobDate >= startDate && jobDate <= endDate;
+        });
 
         // Fetch vehicles to map branch
         const vehicles = await getAllActiveVehicles();
@@ -83,7 +103,7 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
         }
 
         // Enrich and filter by branch
-        let enrichedData = data.map(jc => {
+        let enrichedData = filtered.map(jc => {
             const v = vehicleMap[jc.vehicle_registration];
             return {
                 ...jc,
