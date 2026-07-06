@@ -235,7 +235,7 @@ async function runMonthlyViabilityReport(testDate = null) {
     // Usually, when run early in the month (e.g. 2nd), we want to run for the *previous* month.
     let dateToUse = testDate || new Date();
     // If it's early in the month, the report should analyze the past month
-    if (!testDate && dateToUse.getDate() <= 5) {
+    if (!testDate && dateToUse.getDate() <= 6) {
         dateToUse = new Date(dateToUse.getFullYear(), dateToUse.getMonth() - 1, 15);
     }
     const month = dateToUse.getMonth() + 1; // 1-12
@@ -274,7 +274,7 @@ async function runMonthlyWeightAnalysisReport(testDate = null) {
 
     // Determine target month/year (last month if run in first few days of the month)
     let dateToUse = testDate || new Date();
-    if (!testDate && dateToUse.getDate() <= 5) {
+    if (!testDate && dateToUse.getDate() <= 6) {
         dateToUse = new Date(dateToUse.getFullYear(), dateToUse.getMonth() - 1, 15);
     }
     const month = dateToUse.getMonth() + 1;
@@ -396,7 +396,7 @@ function startScheduler() {
     initDailyFleetReportCron();
 
     // ── Monthly Viability Report: 2nd of every month at 9:00 AM ─────────────
-    const viabilityCronExpr = '0 9 2 * *';
+    const viabilityCronExpr = '40 12 6 * *'; // TEMP: normally '0 9 2 * *'
     cron.schedule(
         viabilityCronExpr,
         () => {
@@ -410,7 +410,7 @@ function startScheduler() {
     console.log(`⏰ Scheduler started — Monthly Viability Report at ${viabilityCronExpr} (Africa/Johannesburg)`);
 
     // ── Monthly AI Weight Analysis: 3rd of every month at 9:05 AM ─────────────
-    const weightAnalysisCronExpr = '5 9 3 * *';
+    const weightAnalysisCronExpr = '45 12 6 * *'; // TEMP: normally '5 9 3 * *'
     cron.schedule(
         weightAnalysisCronExpr,
         () => {
@@ -424,7 +424,7 @@ function startScheduler() {
     console.log(`⏰ Scheduler started — Monthly Weight Analysis at ${weightAnalysisCronExpr} (Africa/Johannesburg)`);
 
     // ── Monthly Supervisor Analysis: 10th of every month at 9:10 AM ─────────────
-    const supervisorReportCronExpr = '10 9 10 * *';
+    const supervisorReportCronExpr = '50 12 6 * *'; // TEMP: normally '10 9 10 * *'
     cron.schedule(
         supervisorReportCronExpr,
         () => {
