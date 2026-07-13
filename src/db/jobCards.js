@@ -71,7 +71,7 @@ function parseDDMMYYYY(str) {
  * Filters by the job_date field on the card (DD/MM/YYYY), NOT the submission timestamp.
  * @param {string} startDateStr - e.g. 2026-04-01 (YYYY-MM-DD)
  * @param {string} endDateStr   - e.g. 2026-04-30 (YYYY-MM-DD)
- * @param {string|null} branch  - Optional branch code: 'MH', 'MM', 'MB', or null/'all'
+ * @param {string|null} branch  - Optional branch name: 'Harare', 'Mutare', 'Bulawayo', or null/'all'
  */
 async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
     // Parse range boundaries (YYYY-MM-DD → Date at midnight UTC)
@@ -95,7 +95,10 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
             return jobDate >= startDate && jobDate <= endDate;
         });
 
-        // Fetch vehicles to map branch
+        // Fetch vehicles to map branch.
+        // Some job cards were saved with extra text after the registration
+        // (e.g. "AHL3922 DUTRO" instead of "AHL3922").  We fall back to
+        // matching on the registration prefix (first space-delimited token).
         const vehicles = await getAllActiveVehicles();
         const vehicleMap = {};
         for (const v of vehicles) {
@@ -104,7 +107,9 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
 
         // Enrich and filter by branch
         let enrichedData = filtered.map(jc => {
-            const v = vehicleMap[jc.vehicle_registration];
+            // Exact match first, then prefix fallback
+            const v = vehicleMap[jc.vehicle_registration]
+                   || vehicleMap[jc.vehicle_registration.split(' ')[0]];
             return {
                 ...jc,
                 branch: v ? v.branch : 'UNKNOWN'
