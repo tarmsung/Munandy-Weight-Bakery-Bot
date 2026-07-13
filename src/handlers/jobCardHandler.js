@@ -46,6 +46,34 @@ async function handleJobCardMessage(sock, msg, text, senderJid) {
         return;
     }
 
+    // Validate date is present and in DD/MM/YYYY format
+    if (!parsedData.date) {
+        await sock.sendMessage(senderJid, {
+            text: `❌ *Date is missing.* Please include the date in the format *dd/mm/yyyy* (e.g. Date: 13/07/2026).`
+        }, { quoted: msg });
+        return;
+    }
+    const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/;
+    if (!dateRegex.test(parsedData.date.trim())) {
+        await sock.sendMessage(senderJid, {
+            text: `❌ *Invalid date format:* "${parsedData.date}". Please use *dd/mm/yyyy* (e.g. 13/07/2026).`
+        }, { quoted: msg });
+        return;
+    }
+
+    // Sanitise registration — strip any extra text after the first token
+    // e.g. "AHL3922 DUTRO" → "AHL3922"
+    const vehicleReg = parsedData.vehicle.toUpperCase().split(' ')[0];
+
+    // Validate vehicle exists in DB before saving
+    const vehicle = await lookupVehicle(vehicleReg);
+    if (!vehicle) {
+        await sock.sendMessage(senderJid, {
+            text: `❌ Vehicle registration *${vehicleReg}* was not found in our database. Please check for typos or ensure the vehicle is registered.`
+        }, { quoted: msg });
+        return;
+    }
+
     // Validate Driver ID
     const driverJobId = parsedData.driver;
     const driver = await getDriverByJobId(driverJobId);
@@ -57,11 +85,11 @@ async function handleJobCardMessage(sock, msg, text, senderJid) {
         return;
     }
 
-    // Save to Database
+    // Save to Database (only after all validation passes)
     try {
         await saveJobCard({
-            vehicle_registration: parsedData.vehicle.toUpperCase(),
-            job_date: parsedData.date || null,
+            vehicle_registration: vehicleReg,
+            job_date: parsedData.date.trim(),
             description: parsedData.job,
             fuel: parsedData.fuel || null,
             price: parsedData.price || null,
@@ -73,14 +101,14 @@ async function handleJobCardMessage(sock, msg, text, senderJid) {
         });
     } catch (err) {
         console.error('Failed to save Job Card to database:', err);
+        await sock.sendMessage(senderJid, {
+            text: `❌ Failed to save the Job Card to the database. Please try again.`
+        }, { quoted: msg });
+        return;
     }
 
-    // Fetch Vehicle Details
-    const vehicleReg = parsedData.vehicle.toUpperCase();
-    const vehicle = await lookupVehicle(vehicleReg);
-    const vehicleDisplay = vehicle ? `${vehicle.make} ${vehicle.model} (${vehicle.registration})` : vehicleReg;
-
     // Format the forwarded message as a receipt
+    const vehicleDisplay = `${vehicle.make} ${vehicle.model} (${vehicle.registration})`;
     const formattedMessage = `🧾 *JOB CARD RECEIPT*\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `👤 *Driver:* ${driver.name}\n` +

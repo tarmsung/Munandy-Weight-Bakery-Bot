@@ -83,8 +83,7 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
         // as DD/MM/YYYY text, which cannot be reliably range-queried in Postgres.
         const { data, error } = await supabase
             .from('job_cards')
-            .select('*')
-            .order('job_date', { ascending: true });
+            .select('*');
 
         if (error) throw error;
 
@@ -94,6 +93,9 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
             if (!jobDate) return false;
             return jobDate >= startDate && jobDate <= endDate;
         });
+
+        // Sort chronologically (DB ordering on DD/MM/YYYY text is alphabetical, not chronological)
+        filtered.sort((a, b) => parseDDMMYYYY(a.job_date) - parseDDMMYYYY(b.job_date));
 
         // Fetch vehicles to map branch.
         // Some job cards were saved with extra text after the registration

@@ -366,9 +366,8 @@ async function handleAdminStep(sock, msg, text, jid) {
                 const branch = session.expenseBranch || 'all';
                 const branchDisplay = branch === 'all' ? 'All Branches' : branch;
 
-                // Map human-readable branch names to database codes
-                const branchCodes = { 'Harare': 'MH', 'Mutare': 'MM', 'Bulawayo': 'MB' };
-                const dbBranch = branch === 'all' ? 'all' : branchCodes[branch];
+                // Branch is already stored as a full name ('Harare', 'Mutare', 'Bulawayo')
+                const dbBranch = branch; // pass through as-is ('all' or full name)
 
                 await reply(`⏳ *Fetching ${branchDisplay} expenses for ${session.tempStartDateDisplay} to ${input}...* Please wait.`);
 

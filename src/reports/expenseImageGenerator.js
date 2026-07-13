@@ -1,14 +1,14 @@
 const nodeHtmlToImage = require('node-html-to-image');
 
-// Map DB branch codes → human-readable names and colours
+// Map DB branch full names → display names and colours
 const BRANCH_META = {
-    'MH': { name: 'Harare',   color: '#1a6b5a', light: '#e8f5f1' },
-    'MM': { name: 'Mutare',   color: '#1a3f6b', light: '#e8eff8' },
-    'MB': { name: 'Bulawayo', color: '#4a1a6b', light: '#f3e8f8' },
+    'Harare':   { name: 'Harare',   color: '#1a6b5a', light: '#e8f5f1' },
+    'Mutare':   { name: 'Mutare',   color: '#1a3f6b', light: '#e8eff8' },
+    'Bulawayo': { name: 'Bulawayo', color: '#4a1a6b', light: '#f3e8f8' },
 };
 
-// Preferred display order
-const BRANCH_ORDER = ['MH', 'MM', 'MB'];
+// Preferred display order (matches DB full branch names)
+const BRANCH_ORDER = ['Harare', 'Mutare', 'Bulawayo'];
 
 /**
  * Group and sum expenses by branch → vehicle.
@@ -46,7 +46,12 @@ function groupExpenses(expenses) {
  * Build the HTML for one branch section table.
  */
 function buildBranchSection(branchCode, data) {
-    const meta = BRANCH_META[branchCode] || { name: branchCode, color: '#2c3e50', light: '#f8f9fa' };
+    const isUnknown = branchCode === 'UNKNOWN';
+    const meta = BRANCH_META[branchCode] || {
+        name: isUnknown ? 'Unverified Vehicles' : branchCode,
+        color: '#636e72',
+        light: '#f5f6fa'
+    };
 
     const vehicleRows = data.vehicles.map((v, idx) => {
         const bg = idx % 2 === 0 ? '#ffffff' : meta.light;

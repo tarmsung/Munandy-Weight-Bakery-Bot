@@ -53,7 +53,12 @@ function groupJobCards(jobCards) {
  * Build the HTML for one branch section table.
  */
 function buildBranchSection(branchCode, data) {
-    const meta = BRANCH_META[branchCode] || { name: branchCode, color: '#2c3e50', light: '#f8f9fa' };
+    const isUnknown = branchCode === 'UNKNOWN';
+    const meta = BRANCH_META[branchCode] || {
+        name: isUnknown ? 'Unverified Vehicles' : branchCode,
+        color: '#636e72',
+        light: '#f5f6fa'
+    };
 
     const vehicleRows = data.vehicles.map((v, idx) => {
         const bg = idx % 2 === 0 ? '#ffffff' : meta.light;

@@ -1,4 +1,14 @@
 /**
+ * Maps common branch name variants → canonical DB name.
+ * Case-insensitive — applied to the trimmed lowercase value.
+ */
+const BRANCH_NORMALISE = {
+    'harare': 'Harare', 'hre': 'Harare', 'mh': 'Harare',
+    'mutare': 'Mutare',  'mtr': 'Mutare',  'mm': 'Mutare',
+    'bulawayo': 'Bulawayo', 'byo': 'Bulawayo', 'mb': 'Bulawayo', 'bul': 'Bulawayo',
+};
+
+/**
  * Parses a strict-format expense message.
  * Expected Format:
  * Expense
@@ -57,7 +67,13 @@ function parseExpenseMessage(rawMessage) {
     }
 
     if (!data.branch) {
-        return { success: false, error: "❌ Invalid format. 'Branch:' line is missing or empty." };
+        return { success: false, error: "❌ Invalid format. 'Branch:' line is missing or empty. Use: Harare, Mutare, or Bulawayo." };
+    }
+
+    // Normalise branch to canonical full name
+    const normalisedBranch = BRANCH_NORMALISE[data.branch.trim().toLowerCase()];
+    if (!normalisedBranch) {
+        return { success: false, error: `❌ Unknown branch: *${data.branch}*. Please use one of: Harare, Mutare, Bulawayo.` };
     }
 
     return {
@@ -66,7 +82,7 @@ function parseExpenseMessage(rawMessage) {
             vehicle_registration: data.vehicle_registration,
             amount: amount,
             description: data.description,
-            branch: data.branch
+            branch: normalisedBranch
         }
     };
 }
