@@ -1,14 +1,14 @@
 const nodeHtmlToImage = require('node-html-to-image');
 
-// Map DB branch codes → human-readable names and colours
+// Map DB branch full names → display names and colours
 const BRANCH_META = {
-    'MH': { name: 'Harare',   color: '#1a6b5a', light: '#e8f5f1' },
-    'MM': { name: 'Mutare',   color: '#1a3f6b', light: '#e8eff8' },
-    'MB': { name: 'Bulawayo', color: '#4a1a6b', light: '#f3e8f8' },
+    'Harare':   { name: 'Harare',   color: '#1a6b5a', light: '#e8f5f1' },
+    'Mutare':   { name: 'Mutare',   color: '#1a3f6b', light: '#e8eff8' },
+    'Bulawayo': { name: 'Bulawayo', color: '#4a1a6b', light: '#f3e8f8' },
 };
 
-// Preferred display order
-const BRANCH_ORDER = ['MH', 'MM', 'MB'];
+// Preferred display order (matches DB full branch names)
+const BRANCH_ORDER = ['Harare', 'Mutare', 'Bulawayo'];
 
 function parsePrice(priceStr) {
     if (!priceStr) return 0;
