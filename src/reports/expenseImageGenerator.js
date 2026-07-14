@@ -5,10 +5,21 @@ const BRANCH_META = {
     'Harare':   { name: 'Harare',   color: '#1a6b5a', light: '#e8f5f1' },
     'Mutare':   { name: 'Mutare',   color: '#1a3f6b', light: '#e8eff8' },
     'Bulawayo': { name: 'Bulawayo', color: '#4a1a6b', light: '#f3e8f8' },
+    // Legacy shortcode aliases stored in DB before normalisation
+    'MH':       { name: 'Harare',   color: '#1a6b5a', light: '#e8f5f1' },
+    'MM':       { name: 'Mutare',   color: '#1a3f6b', light: '#e8eff8' },
+    'MB':       { name: 'Bulawayo', color: '#4a1a6b', light: '#f3e8f8' },
 };
 
 // Preferred display order (matches DB full branch names)
 const BRANCH_ORDER = ['Harare', 'Mutare', 'Bulawayo'];
+
+// Normalise legacy shortcodes → canonical branch name
+const BRANCH_ALIAS = {
+    'MH': 'Harare',
+    'MM': 'Mutare',
+    'MB': 'Bulawayo',
+};
 
 /**
  * Group and sum expenses by branch → vehicle.
@@ -18,7 +29,9 @@ function groupExpenses(expenses) {
     const grouped = {};
 
     for (const exp of expenses) {
-        const branchCode = exp.branch || 'UNKNOWN';
+        const raw = exp.branch || 'UNKNOWN';
+        // Resolve legacy shortcodes to their canonical branch name
+        const branchCode = BRANCH_ALIAS[raw] || raw;
         const reg = exp.vehicle_registration || 'Unknown';
         const amount = Number(exp.amount) || 0;
 
