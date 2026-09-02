@@ -29,12 +29,17 @@ async function connectToWhatsApp() {
     printQRInTerminal: false, // Set to false since we handle it manually now
     auth: state,
     browser: ['Munandy Weight Bot', 'Chrome', '1.0.0'],
+    // Send a keep-alive ping every 15s to detect silent drops before WA kills the session
+    keepAliveIntervalMs: 15_000,
   });
 
-  // Share the live socket reference
+  // Share the live socket reference — updated on every reconnect so scheduler always has the live socket
   setSocket(sock);
 
   sock.ev.on('creds.update', saveCreds);
+
+  // Track reconnect attempts for exponential backoff (resets on successful connection)
+  let reconnectAttempt = 0;
 
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -48,12 +53,19 @@ async function connectToWhatsApp() {
       const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
       const shouldReconnect = code !== DisconnectReason.loggedOut;
       console.log(`Connection closed (code: ${code}). Reconnecting: ${shouldReconnect}`);
+
       if (shouldReconnect) {
-        await connectToWhatsApp();
+        // Exponential backoff: 5s → 10s → 20s → capped at 30s
+        // Using setTimeout (non-recursive) so the current call stack exits cleanly — no stack overflow
+        const delay = Math.min(5000 * Math.pow(2, reconnectAttempt), 30_000);
+        reconnectAttempt++;
+        console.log(`⏳ Reconnect attempt #${reconnectAttempt} in ${delay / 1000}s...`);
+        setTimeout(connectToWhatsApp, delay);
       } else {
         console.log('Logged out. Delete auth_info_baileys/ and restart to re-scan QR.');
       }
     } else if (connection === 'open') {
+      reconnectAttempt = 0; // Reset backoff counter on successful connection
       console.log('✅ Bot connected to WhatsApp!');
     }
   });

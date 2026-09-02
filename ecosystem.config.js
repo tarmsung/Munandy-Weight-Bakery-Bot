@@ -6,7 +6,7 @@ module.exports = {
             instances: 1,
             autorestart: true,
             watch: false,       // Do not watch for file changes in production
-            max_memory_restart: '200M',
+            max_memory_restart: '500M',
             env: {
                 NODE_ENV: 'production',
             },
