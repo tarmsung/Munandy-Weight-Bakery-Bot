@@ -1,5 +1,4 @@
 const supabase = require('./supabase');
-const { getAllActiveVehicles } = require('./vehicles');
 
 async function saveJobCard({ vehicle_registration, job_date, description, fuel, price, time_out, time_in, driver_job_id, reporter_jid, message_id }) {
     try {
@@ -97,13 +96,18 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
         // Sort chronologically (DB ordering on DD/MM/YYYY text is alphabetical, not chronological)
         filtered.sort((a, b) => parseDDMMYYYY(a.job_date) - parseDDMMYYYY(b.job_date));
 
-        // Fetch vehicles to map branch.
+        // Fetch ALL vehicles (active and inactive) to map branch.
+        // Using active-only would silently drop job cards for deactivated vehicles.
         // Some job cards were saved with extra text after the registration
         // (e.g. "AHL3922 DUTRO" instead of "AHL3922").  We fall back to
         // matching on the registration prefix (first space-delimited token).
-        const vehicles = await getAllActiveVehicles();
+        const { data: allVehicles, error: vErr } = await supabase
+            .from('vehicles')
+            .select('registration, make, model, nickname, branch, current_mileage');
+        if (vErr) throw vErr;
+
         const vehicleMap = {};
-        for (const v of vehicles) {
+        for (const v of (allVehicles || [])) {
             vehicleMap[v.registration] = v;
         }
 
@@ -118,8 +122,10 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
             };
         });
 
+        // Case-insensitive branch filter to handle any casing inconsistencies
         if (branch && branch !== 'all') {
-            enrichedData = enrichedData.filter(jc => jc.branch === branch);
+            const branchLower = branch.toLowerCase();
+            enrichedData = enrichedData.filter(jc => jc.branch.toLowerCase() === branchLower);
         }
 
         return enrichedData;
