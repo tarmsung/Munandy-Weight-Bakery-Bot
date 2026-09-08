@@ -86,16 +86,12 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
 
         if (error) throw error;
 
-        console.log(`[JC DEBUG] Total job cards in DB: ${data.length}`);
-
         // Filter by the date written on the job card itself
         const filtered = data.filter(jc => {
             const jobDate = parseDDMMYYYY(jc.job_date);
             if (!jobDate) return false;
             return jobDate >= startDate && jobDate <= endDate;
         });
-
-        console.log(`[JC DEBUG] Job cards in date range (${startDateStr} → ${endDateStr}): ${filtered.length}`);
 
         // Sort chronologically (DB ordering on DD/MM/YYYY text is alphabetical, not chronological)
         filtered.sort((a, b) => parseDDMMYYYY(a.job_date) - parseDDMMYYYY(b.job_date));
@@ -110,8 +106,6 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
             .select('registration, make, model, nickname, branch, current_mileage');
         if (vErr) throw vErr;
 
-        console.log(`[JC DEBUG] Total vehicles fetched for branch lookup: ${(allVehicles || []).length}`);
-
         const vehicleMap = {};
         for (const v of (allVehicles || [])) {
             vehicleMap[v.registration] = v;
@@ -122,23 +116,18 @@ async function getJobCardsByDateRange(startDateStr, endDateStr, branch = null) {
             // Exact match first, then prefix fallback
             const v = vehicleMap[jc.vehicle_registration]
                    || vehicleMap[jc.vehicle_registration.split(' ')[0]];
-            const resolvedBranch = v ? v.branch : 'UNKNOWN';
-            console.log(`[JC DEBUG] Card reg="${jc.vehicle_registration}" date="${jc.job_date}" → vehicle found=${!!v} branch="${resolvedBranch}"`);
             return {
                 ...jc,
-                branch: resolvedBranch
+                branch: v ? v.branch : 'UNKNOWN'
             };
         });
 
         // Case-insensitive branch filter to handle any casing inconsistencies
         if (branch && branch !== 'all') {
             const branchLower = branch.toLowerCase();
-            const before = enrichedData.length;
             enrichedData = enrichedData.filter(jc => jc.branch.toLowerCase() === branchLower);
-            console.log(`[JC DEBUG] Branch filter "${branch}": ${before} → ${enrichedData.length} cards`);
         }
 
-        console.log(`[JC DEBUG] Final result: ${enrichedData.length} cards returned`);
         return enrichedData;
     } catch (err) {
         console.error('Error in getJobCardsByDateRange:', err);
